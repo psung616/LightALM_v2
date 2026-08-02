@@ -6,10 +6,13 @@ import com.lightalm.domain.RequirementType;
 import com.lightalm.dto.ChangeRequirementStatusRequest;
 import com.lightalm.dto.CreateRequirementRequest;
 import com.lightalm.dto.PageResponse;
+import com.lightalm.dto.RequirementLinkResponse;
 import com.lightalm.dto.RequirementResponse;
+import com.lightalm.dto.TraceabilityTreeResponse;
 import com.lightalm.dto.UpdateRequirementRequest;
 import com.lightalm.security.UserPrincipal;
 import com.lightalm.service.RequirementService;
+import com.lightalm.service.TraceabilityService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RequirementController {
 
     private final RequirementService requirementService;
+    private final TraceabilityService traceabilityService;
 
     @GetMapping
     public PageResponse<RequirementResponse> list(@PathVariable Long projectId,
@@ -85,5 +89,17 @@ public class RequirementController {
     public List<RequirementResponse> children(@PathVariable Long projectId, @PathVariable Long reqId,
                                                @AuthenticationPrincipal UserPrincipal principal) {
         return requirementService.children(projectId, reqId, principal);
+    }
+
+    @GetMapping("/{reqId}/links")
+    public List<RequirementLinkResponse> links(@PathVariable Long projectId, @PathVariable Long reqId,
+                                                @AuthenticationPrincipal UserPrincipal principal) {
+        return traceabilityService.requirementLinks(projectId, reqId, principal);
+    }
+
+    @GetMapping("/{reqId}/traceability-tree")
+    public TraceabilityTreeResponse traceabilityTree(@PathVariable Long projectId, @PathVariable Long reqId,
+                                                       @AuthenticationPrincipal UserPrincipal principal) {
+        return traceabilityService.tree(projectId, reqId, principal);
     }
 }

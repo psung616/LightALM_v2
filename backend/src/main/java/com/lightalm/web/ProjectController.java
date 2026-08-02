@@ -4,9 +4,11 @@ import com.lightalm.dto.CreateProjectRequest;
 import com.lightalm.dto.GithubIntegrationRequest;
 import com.lightalm.dto.JenkinsIntegrationRequest;
 import com.lightalm.dto.PageResponse;
+import com.lightalm.dto.ProjectDashboardSummaryResponse;
 import com.lightalm.dto.ProjectResponse;
 import com.lightalm.dto.UpdateProjectRequest;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.DashboardService;
 import com.lightalm.service.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final DashboardService dashboardService;
 
     @GetMapping
     public PageResponse<ProjectResponse> list(@AuthenticationPrincipal UserPrincipal principal, Pageable pageable) {
@@ -70,5 +73,11 @@ public class ProjectController {
                                                       @Valid @RequestBody JenkinsIntegrationRequest request,
                                                       @AuthenticationPrincipal UserPrincipal principal) {
         return projectService.updateJenkinsIntegration(projectId, request, principal);
+    }
+
+    @GetMapping("/{projectId}/dashboard/summary")
+    public ProjectDashboardSummaryResponse dashboardSummary(@PathVariable Long projectId,
+                                                              @AuthenticationPrincipal UserPrincipal principal) {
+        return dashboardService.projectSummary(projectId, principal);
     }
 }

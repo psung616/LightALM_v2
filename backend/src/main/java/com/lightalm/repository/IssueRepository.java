@@ -13,6 +13,10 @@ public interface IssueRepository extends JpaRepository<Issue, Long>, JpaSpecific
 
     List<Issue> findByProjectId(Long projectId);
 
+    List<Issue> findTop10ByProjectIdOrderByUpdatedAtDesc(Long projectId);
+
+    List<Issue> findByProjectIdInAndAssigneeId(List<Long> projectIds, Long assigneeId);
+
     long countByProjectIdAndStatus(Long projectId, IssueStatus status);
 
     long countByProjectIdAndAssigneeId(Long projectId, Long assigneeId);

@@ -14,5 +14,9 @@ public interface RequirementRepository extends JpaRepository<Requirement, Long>,
 
     List<Requirement> findByProjectId(Long projectId);
 
+    List<Requirement> findTop10ByProjectIdOrderByUpdatedAtDesc(Long projectId);
+
+    List<Requirement> findByProjectIdInAndAssignedToId(List<Long> projectIds, Long assignedToId);
+
     long countByProjectIdAndStatus(Long projectId, com.lightalm.domain.RequirementStatus status);
 }
