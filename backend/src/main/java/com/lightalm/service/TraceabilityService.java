@@ -74,9 +74,23 @@ public class TraceabilityService {
         if (!requirement.getProject().getId().equals(projectId)) {
             throw new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + reqId);
         }
+        return linksFor(TargetType.REQUIREMENT, reqId);
+    }
 
-        List<TraceabilityLink> outgoing = traceabilityLinkRepository.findBySourceTypeAndSourceId(TargetType.REQUIREMENT, reqId);
-        List<TraceabilityLink> incoming = traceabilityLinkRepository.findByTargetTypeAndTargetId(TargetType.REQUIREMENT, reqId);
+    @Transactional(readOnly = true)
+    public List<RequirementLinkResponse> issueLinks(Long projectId, Long issueId, UserPrincipal principal) {
+        projectMemberService.requireRole(projectId, principal, ProjectRole.VIEWER);
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() -> new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + issueId));
+        if (!issue.getProject().getId().equals(projectId)) {
+            throw new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + issueId);
+        }
+        return linksFor(TargetType.ISSUE, issueId);
+    }
+
+    private List<RequirementLinkResponse> linksFor(TargetType type, Long id) {
+        List<TraceabilityLink> outgoing = traceabilityLinkRepository.findBySourceTypeAndSourceId(type, id);
+        List<TraceabilityLink> incoming = traceabilityLinkRepository.findByTargetTypeAndTargetId(type, id);
 
         List<RequirementLinkResponse> result = new ArrayList<>();
         for (TraceabilityLink link : outgoing) {

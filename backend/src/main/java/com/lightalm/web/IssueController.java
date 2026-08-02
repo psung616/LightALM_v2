@@ -7,10 +7,13 @@ import com.lightalm.dto.ChangeIssueStatusRequest;
 import com.lightalm.dto.CreateIssueRequest;
 import com.lightalm.dto.IssueResponse;
 import com.lightalm.dto.PageResponse;
+import com.lightalm.dto.RequirementLinkResponse;
 import com.lightalm.dto.UpdateIssueRequest;
 import com.lightalm.security.UserPrincipal;
 import com.lightalm.service.IssueService;
+import com.lightalm.service.TraceabilityService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IssueController {
 
     private final IssueService issueService;
+    private final TraceabilityService traceabilityService;
 
     @GetMapping
     public PageResponse<IssueResponse> list(@PathVariable Long projectId,
@@ -77,5 +81,11 @@ public class IssueController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long projectId, @PathVariable Long issueId, @AuthenticationPrincipal UserPrincipal principal) {
         issueService.delete(projectId, issueId, principal);
+    }
+
+    @GetMapping("/{issueId}/links")
+    public List<RequirementLinkResponse> links(@PathVariable Long projectId, @PathVariable Long issueId,
+                                                @AuthenticationPrincipal UserPrincipal principal) {
+        return traceabilityService.issueLinks(projectId, issueId, principal);
     }
 }

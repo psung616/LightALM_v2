@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type { IssueStatus, IssueType, PageResponse, Priority } from '../types/common';
 import type { Issue } from '../types/issue';
+import type { RequirementLink } from '../types/requirement';
 
 export interface IssueFilters {
   status?: IssueStatus;
@@ -50,4 +51,9 @@ export async function changeIssueStatus(projectId: number, issueId: number, stat
 
 export async function deleteIssue(projectId: number, issueId: number): Promise<void> {
   await apiClient.delete(`/projects/${projectId}/issues/${issueId}`);
+}
+
+export async function listIssueLinks(projectId: number, issueId: number): Promise<RequirementLink[]> {
+  const { data } = await apiClient.get<RequirementLink[]>(`/projects/${projectId}/issues/${issueId}/links`);
+  return data;
 }
