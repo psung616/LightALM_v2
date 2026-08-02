@@ -133,6 +133,7 @@ light-alm/
 | 서버 상태 관리 | @tanstack/react-query |
 | HTTP 클라이언트(프론트) | axios (`withCredentials: true`) |
 | 스타일링 | Tailwind CSS |
+| 다이어그램 렌더링 | `mermaid`(npm) — Workflow 상태 차트(§5.5)를 PlantUML류 상태 다이어그램처럼 시각화하는 데 사용, 서버 없이 브라우저에서 SVG로 렌더링 |
 | CI | Jenkins (빌드/테스트 파이프라인), GitHub (소스 저장소 + Webhook 트리거) |
 
 ### 2.4 실행 환경 (Local / 사내 테스트 서버) — 실제 구현 방식
@@ -724,12 +725,32 @@ Project 1---N JenkinsBuild (target = Requirement|Issue)
 
 §1.3에서 "커스텀 워크플로우 엔진"은 명시적으로 스코프 밖이다. 즉 상태 전이 규칙을 프로젝트마다 다르게 설정하거나, 특정 상태에서만 다음 상태로 넘어갈 수 있게 강제하는 기능은 만들지 않는다. 여기서 추가하는 "Workflow 차트"는 그런 엔진이 아니라, **§3.4/§3.5에 이미 고정되어 있는 상태 목록을 다이어그램으로 보여주기만 하는 순수 시각화 컴포넌트**다 — 데이터베이스 스키마나 상태 변경 API(`PATCH .../status`)는 전혀 바뀌지 않는다.
 
-- **요구사항 Workflow 차트**: `DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → VERIFIED`를 기본 흐름(가로로 나열된 박스 + 화살표)으로 그리고, `REJECTED`는 흐름 아래쪽에 별도 노드로 두고 다른 모든 상태에서 점선 화살표로 연결해 "어디서든 REJECTED로 갈 수 있음"을 표현한다.
-- **이슈 Workflow 차트**: `TODO → IN_PROGRESS → IN_REVIEW → DONE → CLOSED`를 동일한 방식으로 가로 흐름으로 그린다.
+- **요구사항 Workflow 차트**: `DRAFT → APPROVED → IN_PROGRESS → IMPLEMENTED → VERIFIED`를 기본 흐름으로 하고, `REJECTED`는 다른 모든 상태에서 갈 수 있는 별도 노드로 표현한다.
+- **이슈 Workflow 차트**: `TODO → IN_PROGRESS → IN_REVIEW → DONE → CLOSED`를 동일한 방식으로 표현한다.
 - **표시 위치**:
-  - 요구사항/이슈 상세 화면: 현재 항목의 상태에 해당하는 노드를 강조(테두리/색상)한 미니 위젯으로 표시(§5.2).
-  - 프로젝트 대시보드: 각 단계 노드 아래에 해당 상태의 항목 개수를 함께 표시하는 "퍼널형" 차트로 확장해서, 기존 도넛/막대 위젯과 토글로 전환 가능하게 한다(§5.2).
-- **구현 방식**: 상태 목록/순서는 프론트엔드에 §3.4·§3.5 CHECK 제약과 동일한 순서로 하드코딩한다(백엔드에 별도 "워크플로우 정의" API를 만들지 않는다). 노드/화살표 렌더링은 별도 다이어그램 라이브러리 없이 CSS flex + SVG 화살표로 구현 가능한 수준이며, 필요시 가벼운 라이브러리(예: 단순 SVG 컴포넌트)를 써도 된다.
+  - 요구사항/이슈 상세 화면: 현재 항목의 상태에 해당하는 노드를 강조(색상)한 미니 위젯으로 표시(§5.2).
+  - 프로젝트 대시보드: 각 노드 라벨에 해당 상태의 항목 개수를 함께 표시하는 "퍼널형" 차트로 확장해서, 기존 도넛/막대 위젯과 토글로 전환 가능하게 한다(§5.2).
+
+**렌더링 방식(신규 — PlantUML류 실제 다이어그램으로 시각화)**: 손으로 짠 CSS/SVG 대신 **Mermaid**(`stateDiagram-v2`)로 렌더링한다. Mermaid는 PlantUML처럼 텍스트로 다이어그램을 정의하면 노드/화살표를 자동 배치해서 SVG로 그려주는 라이브러리이고, `mermaid` npm 패키지로 브라우저에서 별도 서버 없이 바로 렌더링할 수 있어 이 프로젝트의 "가벼운 SPA" 구조와 잘 맞는다(백엔드에 다이어그램 렌더링 API를 따로 만들지 않는다).
+
+- **정의 생성**: 프론트엔드가 §3.4·§3.5의 고정된 상태 목록/순서를 하드코딩한 값으로 Mermaid 정의 문자열을 조립한다. 요구사항 예시:
+```
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> APPROVED
+    APPROVED --> IN_PROGRESS
+    IN_PROGRESS --> IMPLEMENTED
+    IMPLEMENTED --> VERIFIED
+    DRAFT --> REJECTED
+    APPROVED --> REJECTED
+    IN_PROGRESS --> REJECTED
+    IMPLEMENTED --> REJECTED
+    class IN_PROGRESS current
+```
+  이슈도 동일한 패턴(`TODO → IN_PROGRESS → IN_REVIEW → DONE → CLOSED`)으로 조립한다.
+- **현재 상태 강조**: 현재 항목의 상태값에 해당하는 노드 이름에 `class {상태} current` 줄을 붙이고, `classDef current fill:#...`로 강조 색상을 정의해 상세 화면 위젯에서 그 노드만 눈에 띄게 한다.
+- **대시보드 카운트 모드**: 같은 정의 문자열의 각 노드 라벨을 `DRAFT: 12`처럼 상태명+건수로 바꿔서 조립하면(Mermaid는 `상태명 : 라벨텍스트` 문법으로 노드 표시 텍스트를 바꿀 수 있다) 별도 컴포넌트 없이 동일한 렌더러로 "퍼널형" 카운트 차트도 그릴 수 있다. 즉 상세 화면용(현재 상태 강조)과 대시보드용(건수 표시)을 **하나의 `WorkflowChart` 컴포넌트**가 옵션(`highlightStatus` 또는 `counts`)만 다르게 받아 처리하도록 구현한다.
+- **구현 위치**: `frontend/src/components/WorkflowChart.tsx`에서 `mermaid.initialize(...)` 후 `mermaid.render(id, definition)`로 SVG 문자열을 얻어 `dangerouslySetInnerHTML`(또는 ref로 직접 DOM 삽입)로 렌더링한다. React 컴포넌트 마운트/상태 변경 시 정의 문자열이 바뀌면 다시 render 호출.
 - **주의**: 이 차트는 "일반적으로 이런 순서로 진행된다"는 안내일 뿐, 실제로는 `PATCH .../status`가 임의의 상태값으로 즉시 변경을 허용한다(전이 순서를 막는 로직 없음, §7 관련 없음). 화면에는 이 점을 짧은 툴팁("참고용 흐름도이며 상태는 자유롭게 변경할 수 있습니다")으로 안내한다.
 
 ---
@@ -836,7 +857,7 @@ Project 1---N JenkinsBuild (target = Requirement|Issue)
 3. **DoD**: curl로 모의 Jenkins webhook payload 전송 시 빌드 레코드 생성/갱신 확인
 
 ### Phase 9 — 프론트엔드 기반 구축
-1. Vite 프로젝트에 react-router-dom, axios, @tanstack/react-query, Tailwind 설치/설정
+1. Vite 프로젝트에 react-router-dom, axios, @tanstack/react-query, Tailwind, **mermaid**(§5.5 Workflow 차트용) 설치/설정
 2. axios 인스턴스(`withCredentials: true`, 401 응답 시 `/login`으로 리다이렉트하는 인터셉터) 구성
 3. `AuthContext` + `ProtectedRoute` 구현 — 앱 마운트 시 `GET /api/auth/me`로 세션 확인, 확인 완료 전(`isLoading`)에는 라우트 대신 전체 화면 로딩 표시, 완료 후 인증 여부에 따라 원래 경로 렌더링 또는 `/login` 리다이렉트(§5.3 참고)
 4. 공통 레이아웃(§5.3) 구현: `TopNavbar`(로고=홈 버튼, 내 작업/사용자 관리 링크, `/`·`/my-tasks`·`/admin/users`에서 사용)와 `ProjectLayout`(사이드바 + "← 프로젝트 목록" 링크, `/projects/:projectId/**`에서 사용) 두 컴포넌트로 구현한다. §5.1 라우트 테이블의 인증 필요 라우트는 경로에 맞는 레이아웃으로 감싼다
