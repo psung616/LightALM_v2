@@ -62,6 +62,20 @@ export function ProjectLayout() {
           <NavLink to={`/projects/${id}/traceability`} className={navItemClass}>
             추적성
           </NavLink>
+          <NavLink to={`/projects/${id}/test-cases`} className={navItemClass}>
+            테스트케이스
+          </NavLink>
+          <NavLink to={`/projects/${id}/test-runs`} className={navItemClass}>
+            테스트런
+          </NavLink>
+          <NavLink to={`/projects/${id}/releases`} className={navItemClass}>
+            릴리스
+          </NavLink>
+          {canManageSettings && (
+            <NavLink to={`/projects/${id}/approvals`} className={navItemClass}>
+              승인함
+            </NavLink>
+          )}
           {canManageSettings && (
             <NavLink to={`/projects/${id}/settings`} className={navItemClass}>
               설정

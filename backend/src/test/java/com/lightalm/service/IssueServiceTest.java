@@ -39,6 +39,8 @@ class IssueServiceTest {
     private ProjectService projectService;
     @Mock
     private ProjectMemberService projectMemberService;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private IssueService issueService;

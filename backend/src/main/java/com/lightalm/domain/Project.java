@@ -55,6 +55,10 @@ public class Project {
     @Builder.Default
     private Integer requirementSeq = 0;
 
+    @Column(name = "test_case_seq", nullable = false)
+    @Builder.Default
+    private Integer testCaseSeq = 0;
+
     @Column(name = "github_repo_owner", length = 100)
     private String githubRepoOwner;
 

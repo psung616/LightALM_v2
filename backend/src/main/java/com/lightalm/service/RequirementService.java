@@ -1,5 +1,7 @@
 package com.lightalm.service;
 
+import com.lightalm.domain.AuditAction;
+import com.lightalm.domain.AuditTargetType;
 import com.lightalm.domain.Priority;
 import com.lightalm.domain.Project;
 import com.lightalm.domain.ProjectRole;
@@ -18,6 +20,7 @@ import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ public class RequirementService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<RequirementResponse> list(Long projectId, RequirementStatus status, RequirementType type,
@@ -109,7 +113,10 @@ public class RequirementService {
                 .assignedTo(assignee)
                 .dueDate(request.getDueDate())
                 .build();
-        return RequirementResponse.from(requirementRepository.save(requirement));
+        Requirement saved = requirementRepository.save(requirement);
+        auditLogService.record(projectId, AuditTargetType.REQUIREMENT, saved.getId(), AuditAction.CREATE,
+                null, null, saved.getTitle(), principal.getId());
+        return RequirementResponse.from(saved);
     }
 
     @Transactional
@@ -125,6 +132,14 @@ public class RequirementService {
             parent = getEntity(projectId, request.getParentRequirementId());
         }
 
+        String oldTitle = requirement.getTitle();
+        String oldDescription = requirement.getDescription();
+        RequirementType oldType = requirement.getType();
+        Priority oldPriority = requirement.getPriority();
+        Long oldParentId = requirement.getParentRequirement() != null ? requirement.getParentRequirement().getId() : null;
+        Long oldAssignedToId = requirement.getAssignedTo() != null ? requirement.getAssignedTo().getId() : null;
+        LocalDate oldDueDate = requirement.getDueDate();
+
         requirement.setTitle(request.getTitle());
         requirement.setDescription(request.getDescription());
         requirement.setType(request.getType());
@@ -132,6 +147,16 @@ public class RequirementService {
         requirement.setParentRequirement(parent);
         requirement.setAssignedTo(resolveAssignee(request.getAssignedTo()));
         requirement.setDueDate(request.getDueDate());
+
+        Long newParentId = requirement.getParentRequirement() != null ? requirement.getParentRequirement().getId() : null;
+        Long newAssignedToId = requirement.getAssignedTo() != null ? requirement.getAssignedTo().getId() : null;
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "title", oldTitle, requirement.getTitle());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "description", oldDescription, requirement.getDescription());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "type", oldType, requirement.getType());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "priority", oldPriority, requirement.getPriority());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "parentRequirementId", oldParentId, newParentId);
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "assignedTo", oldAssignedToId, newAssignedToId);
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "dueDate", oldDueDate, requirement.getDueDate());
         return RequirementResponse.from(requirement);
     }
 
@@ -139,7 +164,12 @@ public class RequirementService {
     public RequirementResponse changeStatus(Long projectId, Long reqId, ChangeRequirementStatusRequest request, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
         Requirement requirement = getEntity(projectId, reqId);
+        RequirementStatus oldStatus = requirement.getStatus();
+        if (oldStatus == RequirementStatus.DRAFT && request.getStatus() == RequirementStatus.APPROVED) {
+            throw new ValidationException("DRAFT → APPROVED 전이는 승인 요청을 통해서만 가능합니다. POST .../approval-requests를 사용하세요.");
+        }
         requirement.setStatus(request.getStatus());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, reqId, principal.getId(), "status", oldStatus, requirement.getStatus(), AuditAction.STATUS_CHANGE);
         return RequirementResponse.from(requirement);
     }
 
@@ -147,6 +177,8 @@ public class RequirementService {
     public void delete(Long projectId, Long reqId, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.PROJECT_ADMIN);
         Requirement requirement = getEntity(projectId, reqId);
+        auditLogService.record(projectId, AuditTargetType.REQUIREMENT, reqId, AuditAction.DELETE,
+                null, requirement.getTitle(), null, principal.getId());
         requirementRepository.delete(requirement);
     }
 

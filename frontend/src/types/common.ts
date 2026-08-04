@@ -32,3 +32,12 @@ export type LinkType = 'IMPLEMENTS' | 'TESTS' | 'DEPENDS_ON' | 'RELATES_TO' | 'D
 export type GitLinkSource = 'COMMIT' | 'PULL_REQUEST';
 export type PrStatus = 'OPEN' | 'MERGED' | 'CLOSED';
 export type BuildStatus = 'SUCCESS' | 'FAILURE' | 'UNSTABLE' | 'RUNNING' | 'ABORTED';
+
+export type TestCaseStatus = 'DRAFT' | 'READY' | 'DEPRECATED';
+export type TestRunStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
+export type TestResult = 'NOT_RUN' | 'PASS' | 'FAIL' | 'BLOCKED' | 'SKIPPED';
+
+export type ReleaseStatus = 'PLANNED' | 'IN_PROGRESS' | 'RELEASED' | 'ARCHIVED';
+
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type ApprovalDecision = 'APPROVE' | 'REJECT';

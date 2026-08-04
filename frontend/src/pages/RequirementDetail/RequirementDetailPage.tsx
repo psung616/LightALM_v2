@@ -12,11 +12,15 @@ import { listIssues } from '../../api/issue';
 import { createLink } from '../../api/traceability';
 import { listComments, createComment } from '../../api/comment';
 import { listGitLinks, createGitLink } from '../../api/integration';
+import { listTestCasesForRequirement } from '../../api/testCase';
+import { listAuditLogsForTarget } from '../../api/auditLog';
+import { createApprovalRequest } from '../../api/approval';
 import type { LinkType, Priority, RequirementStatus, RequirementType } from '../../types/common';
 import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { REQUIREMENT_BRANCH_STAGE, REQUIREMENT_MAIN_STAGES, WorkflowChart } from '../../components/WorkflowChart';
 import { TraceabilityTreeView } from '../../components/TraceabilityTreeView';
 import { FullScreenLoader } from '../../components/FullScreenLoader';
+import { AuditLogList } from '../../components/AuditLogList';
 
 const STATUS_OPTIONS: RequirementStatus[] = ['DRAFT', 'APPROVED', 'IN_PROGRESS', 'IMPLEMENTED', 'VERIFIED', 'REJECTED'];
 const TYPE_OPTIONS: RequirementType[] = ['FUNCTIONAL', 'NON_FUNCTIONAL', 'BUSINESS'];
@@ -73,6 +77,18 @@ export function RequirementDetailPage() {
     enabled: Number.isFinite(id),
   });
 
+  const testCasesQuery = useQuery({
+    queryKey: ['requirement', rid, 'test-cases'],
+    queryFn: () => listTestCasesForRequirement(id, rid),
+    enabled: Number.isFinite(id) && Number.isFinite(rid),
+  });
+
+  const auditLogsQuery = useQuery({
+    queryKey: ['requirements', rid, 'audit-logs'],
+    queryFn: () => listAuditLogsForTarget(id, 'requirements', rid),
+    enabled: Number.isFinite(id) && Number.isFinite(rid),
+  });
+
   const [form, setForm] = useState<{ title: string; description: string; type: RequirementType; priority: Priority; dueDate: string }>({
     title: '',
     description: '',
@@ -107,6 +123,11 @@ export function RequirementDetailPage() {
 
   const statusMutation = useMutation({
     mutationFn: (status: RequirementStatus) => changeRequirementStatus(id, rid, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['requirement', rid] }),
+  });
+
+  const approvalRequestMutation = useMutation({
+    mutationFn: () => createApprovalRequest(id, rid, 'APPROVED'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['requirement', rid] }),
   });
 
@@ -179,15 +200,27 @@ export function RequirementDetailPage() {
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">상태 흐름</h2>
-          <select
-            value={r.status}
-            onChange={(e) => statusMutation.mutate(e.target.value as RequirementStatus)}
-            className="rounded-md border border-slate-300 px-2 py-1 text-sm"
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            {r.status === 'DRAFT' && (
+              <button
+                type="button"
+                disabled={approvalRequestMutation.isPending || approvalRequestMutation.isSuccess}
+                onClick={() => approvalRequestMutation.mutate()}
+                className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {approvalRequestMutation.isSuccess ? '승인 대기 중' : '승인 요청'}
+              </button>
+            )}
+            <select
+              value={r.status}
+              onChange={(e) => statusMutation.mutate(e.target.value as RequirementStatus)}
+              className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+            >
+              {STATUS_OPTIONS.filter((s) => !(r.status === 'DRAFT' && s === 'APPROVED')).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <WorkflowChart mainStages={REQUIREMENT_MAIN_STAGES} branchStage={REQUIREMENT_BRANCH_STAGE} current={r.status} />
       </div>
@@ -316,6 +349,29 @@ export function RequirementDetailPage() {
       </div>
 
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">연결된 테스트케이스</h2>
+          <Link to={`/projects/${id}/test-cases`} className="text-sm text-blue-600 hover:underline">
+            테스트케이스 만들기
+          </Link>
+        </div>
+        <ul className="flex flex-col gap-1.5">
+          {testCasesQuery.data?.map((tc) => (
+            <li key={tc.id}>
+              <Link to={`/projects/${id}/test-cases/${tc.id}`} className="flex items-center justify-between text-sm hover:underline">
+                <span>
+                  <span className="mr-2 font-medium text-slate-700">{tc.tcKey}</span>
+                  {tc.title}
+                </span>
+                <StatusBadge status={tc.status} />
+              </Link>
+            </li>
+          ))}
+          {testCasesQuery.data?.length === 0 && <p className="text-sm text-slate-400">연결된 테스트케이스가 없습니다.</p>}
+        </ul>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-700">연결된 이슈/요구사항</h2>
         <ul className="mb-3 flex flex-col gap-1.5">
           {linksQuery.data?.map((link) => (
@@ -420,6 +476,11 @@ export function RequirementDetailPage() {
             등록
           </button>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">이력</h2>
+        <AuditLogList logs={auditLogsQuery.data ?? []} />
       </div>
     </div>
   );

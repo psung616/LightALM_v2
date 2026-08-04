@@ -134,6 +134,18 @@ public class ProjectService {
         return project.getProjectKey() + "-" + next;
     }
 
+    /**
+     * 테스트케이스 키 채번(v2 확장, Phase 12). 동시성 보호를 위해 프로젝트 행에 비관적 락을 건 뒤 증가시킨다.
+     */
+    @Transactional
+    public String nextTestCaseKey(Long projectId) {
+        Project project = projectRepository.findByIdForUpdate(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("프로젝트를 찾을 수 없습니다: " + projectId));
+        int next = project.getTestCaseSeq() + 1;
+        project.setTestCaseSeq(next);
+        return project.getProjectKey() + "-TC" + next;
+    }
+
     @Transactional(readOnly = true)
     public Project getEntity(Long id) {
         return projectRepository.findById(id)

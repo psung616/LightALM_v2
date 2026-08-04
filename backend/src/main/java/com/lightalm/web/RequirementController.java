@@ -3,15 +3,20 @@ package com.lightalm.web;
 import com.lightalm.domain.Priority;
 import com.lightalm.domain.RequirementStatus;
 import com.lightalm.domain.RequirementType;
+import com.lightalm.dto.ApprovalRequestResponse;
 import com.lightalm.dto.ChangeRequirementStatusRequest;
+import com.lightalm.dto.CreateApprovalRequestRequest;
 import com.lightalm.dto.CreateRequirementRequest;
 import com.lightalm.dto.PageResponse;
 import com.lightalm.dto.RequirementLinkResponse;
 import com.lightalm.dto.RequirementResponse;
+import com.lightalm.dto.TestCaseResponse;
 import com.lightalm.dto.TraceabilityTreeResponse;
 import com.lightalm.dto.UpdateRequirementRequest;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.ApprovalService;
 import com.lightalm.service.RequirementService;
+import com.lightalm.service.TestCaseService;
 import com.lightalm.service.TraceabilityService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -38,6 +43,8 @@ public class RequirementController {
 
     private final RequirementService requirementService;
     private final TraceabilityService traceabilityService;
+    private final TestCaseService testCaseService;
+    private final ApprovalService approvalService;
 
     @GetMapping
     public PageResponse<RequirementResponse> list(@PathVariable Long projectId,
@@ -101,5 +108,19 @@ public class RequirementController {
     public TraceabilityTreeResponse traceabilityTree(@PathVariable Long projectId, @PathVariable Long reqId,
                                                        @AuthenticationPrincipal UserPrincipal principal) {
         return traceabilityService.tree(projectId, reqId, principal);
+    }
+
+    @GetMapping("/{reqId}/test-cases")
+    public List<TestCaseResponse> testCases(@PathVariable Long projectId, @PathVariable Long reqId,
+                                             @AuthenticationPrincipal UserPrincipal principal) {
+        return testCaseService.listByRequirement(projectId, reqId, principal);
+    }
+
+    @PostMapping("/{reqId}/approval-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApprovalRequestResponse createApprovalRequest(@PathVariable Long projectId, @PathVariable Long reqId,
+                                                           @Valid @RequestBody CreateApprovalRequestRequest request,
+                                                           @AuthenticationPrincipal UserPrincipal principal) {
+        return approvalService.create(projectId, reqId, request, principal);
     }
 }

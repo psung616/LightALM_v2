@@ -15,6 +15,13 @@ import { TraceabilityPage } from './pages/Traceability/TraceabilityPage';
 import { ProjectSettingsPage } from './pages/ProjectSettings/ProjectSettingsPage';
 import { AdminUsersPage } from './pages/AdminUsers/AdminUsersPage';
 import { MyTasksPage } from './pages/MyTasks/MyTasksPage';
+import { TestCaseListPage } from './pages/TestCaseList/TestCaseListPage';
+import { TestCaseDetailPage } from './pages/TestCaseDetail/TestCaseDetailPage';
+import { TestRunListPage } from './pages/TestRunList/TestRunListPage';
+import { TestRunDetailPage } from './pages/TestRunDetail/TestRunDetailPage';
+import { ReleaseListPage } from './pages/ReleaseList/ReleaseListPage';
+import { ReleaseDetailPage } from './pages/ReleaseDetail/ReleaseDetailPage';
+import { ApprovalInboxPage } from './pages/ApprovalInbox/ApprovalInboxPage';
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +52,13 @@ export const router = createBrowserRouter([
           { path: '/projects/:projectId/issues', element: <IssueListPage /> },
           { path: '/projects/:projectId/issues/:issueId', element: <IssueDetailPage /> },
           { path: '/projects/:projectId/traceability', element: <TraceabilityPage /> },
+          { path: '/projects/:projectId/test-cases', element: <TestCaseListPage /> },
+          { path: '/projects/:projectId/test-cases/:tcId', element: <TestCaseDetailPage /> },
+          { path: '/projects/:projectId/test-runs', element: <TestRunListPage /> },
+          { path: '/projects/:projectId/test-runs/:runId', element: <TestRunDetailPage /> },
+          { path: '/projects/:projectId/releases', element: <ReleaseListPage /> },
+          { path: '/projects/:projectId/releases/:releaseId', element: <ReleaseDetailPage /> },
+          { path: '/projects/:projectId/approvals', element: <ApprovalInboxPage /> },
           { path: '/projects/:projectId/settings', element: <ProjectSettingsPage /> },
         ],
       },

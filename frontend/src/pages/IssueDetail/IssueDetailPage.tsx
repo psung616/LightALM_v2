@@ -4,10 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { changeIssueStatus, getIssue, listIssueLinks, updateIssue } from '../../api/issue';
 import { listComments, createComment } from '../../api/comment';
 import { listGitLinks, createGitLink, listBuilds, triggerBuild } from '../../api/integration';
+import { listAuditLogsForTarget } from '../../api/auditLog';
 import type { IssueStatus, IssueType, Priority } from '../../types/common';
 import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { ISSUE_MAIN_STAGES, WorkflowChart } from '../../components/WorkflowChart';
 import { FullScreenLoader } from '../../components/FullScreenLoader';
+import { AuditLogList } from '../../components/AuditLogList';
 
 const STATUS_OPTIONS: IssueStatus[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE', 'CLOSED'];
 const TYPE_OPTIONS: IssueType[] = ['BUG', 'TASK', 'STORY', 'IMPROVEMENT'];
@@ -59,6 +61,12 @@ export function IssueDetailPage() {
   const buildsQuery = useQuery({
     queryKey: ['issues', iid, 'builds'],
     queryFn: () => listBuilds(id, 'issues', iid),
+    enabled: Number.isFinite(id) && Number.isFinite(iid),
+  });
+
+  const auditLogsQuery = useQuery({
+    queryKey: ['issues', iid, 'audit-logs'],
+    queryFn: () => listAuditLogsForTarget(id, 'issues', iid),
     enabled: Number.isFinite(id) && Number.isFinite(iid),
   });
 
@@ -376,6 +384,11 @@ export function IssueDetailPage() {
             등록
           </button>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-700">이력</h2>
+        <AuditLogList logs={auditLogsQuery.data ?? []} />
       </div>
     </div>
   );

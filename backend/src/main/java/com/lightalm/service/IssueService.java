@@ -1,5 +1,7 @@
 package com.lightalm.service;
 
+import com.lightalm.domain.AuditAction;
+import com.lightalm.domain.AuditTargetType;
 import com.lightalm.domain.Issue;
 import com.lightalm.domain.IssueStatus;
 import com.lightalm.domain.IssueType;
@@ -17,6 +19,7 @@ import com.lightalm.repository.IssueRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +37,7 @@ public class IssueService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public PageResponse<IssueResponse> list(Long projectId, IssueStatus status, IssueType type, Priority priority,
@@ -90,19 +94,38 @@ public class IssueService {
                 .assignee(assignee)
                 .dueDate(request.getDueDate())
                 .build();
-        return IssueResponse.from(issueRepository.save(issue));
+        Issue saved = issueRepository.save(issue);
+        auditLogService.record(projectId, AuditTargetType.ISSUE, saved.getId(), AuditAction.CREATE,
+                null, null, saved.getTitle(), principal.getId());
+        return IssueResponse.from(saved);
     }
 
     @Transactional
     public IssueResponse update(Long projectId, Long issueId, UpdateIssueRequest request, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
         Issue issue = getEntity(projectId, issueId);
+
+        String oldTitle = issue.getTitle();
+        String oldDescription = issue.getDescription();
+        IssueType oldType = issue.getType();
+        Priority oldPriority = issue.getPriority();
+        Long oldAssigneeId = issue.getAssignee() != null ? issue.getAssignee().getId() : null;
+        LocalDate oldDueDate = issue.getDueDate();
+
         issue.setTitle(request.getTitle());
         issue.setDescription(request.getDescription());
         issue.setType(request.getType());
         issue.setPriority(request.getPriority() != null ? request.getPriority() : issue.getPriority());
         issue.setAssignee(resolveAssignee(request.getAssigneeId()));
         issue.setDueDate(request.getDueDate());
+
+        Long newAssigneeId = issue.getAssignee() != null ? issue.getAssignee().getId() : null;
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "title", oldTitle, issue.getTitle());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "description", oldDescription, issue.getDescription());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "type", oldType, issue.getType());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "priority", oldPriority, issue.getPriority());
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "assigneeId", oldAssigneeId, newAssigneeId);
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "dueDate", oldDueDate, issue.getDueDate());
         return IssueResponse.from(issue);
     }
 
@@ -110,12 +133,14 @@ public class IssueService {
     public IssueResponse changeStatus(Long projectId, Long issueId, ChangeIssueStatusRequest request, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
         Issue issue = getEntity(projectId, issueId);
+        IssueStatus oldStatus = issue.getStatus();
         issue.setStatus(request.getStatus());
         if (request.getStatus() == IssueStatus.DONE) {
             issue.setResolvedAt(LocalDateTime.now());
         } else {
             issue.setResolvedAt(null);
         }
+        auditLogService.recordIfChanged(projectId, AuditTargetType.ISSUE, issueId, principal.getId(), "status", oldStatus, issue.getStatus(), AuditAction.STATUS_CHANGE);
         return IssueResponse.from(issue);
     }
 
@@ -123,6 +148,8 @@ public class IssueService {
     public void delete(Long projectId, Long issueId, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.PROJECT_ADMIN);
         Issue issue = getEntity(projectId, issueId);
+        auditLogService.record(projectId, AuditTargetType.ISSUE, issueId, AuditAction.DELETE,
+                null, issue.getTitle(), null, principal.getId());
         issueRepository.delete(issue);
     }
 

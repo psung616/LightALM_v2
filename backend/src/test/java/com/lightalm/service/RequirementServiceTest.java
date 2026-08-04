@@ -43,6 +43,8 @@ class RequirementServiceTest {
     private ProjectService projectService;
     @Mock
     private ProjectMemberService projectMemberService;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private RequirementService requirementService;
@@ -120,13 +122,25 @@ class RequirementServiceTest {
     @Test
     void changeStatus_updatesStatus() {
         Requirement existing = Requirement.builder().id(8L).project(project).reqKey("LALM-R8")
-                .status(RequirementStatus.DRAFT).build();
+                .status(RequirementStatus.APPROVED).build();
         when(requirementRepository.findById(8L)).thenReturn(Optional.of(existing));
         ChangeRequirementStatusRequest request = new ChangeRequirementStatusRequest();
-        request.setStatus(RequirementStatus.APPROVED);
+        request.setStatus(RequirementStatus.IN_PROGRESS);
 
         RequirementResponse response = requirementService.changeStatus(10L, 8L, request, principal);
 
-        assertThat(response.getStatus()).isEqualTo(RequirementStatus.APPROVED);
+        assertThat(response.getStatus()).isEqualTo(RequirementStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void changeStatus_rejectsDirectDraftToApprovedTransition() {
+        Requirement existing = Requirement.builder().id(9L).project(project).reqKey("LALM-R9")
+                .status(RequirementStatus.DRAFT).build();
+        when(requirementRepository.findById(9L)).thenReturn(Optional.of(existing));
+        ChangeRequirementStatusRequest request = new ChangeRequirementStatusRequest();
+        request.setStatus(RequirementStatus.APPROVED);
+
+        assertThatThrownBy(() -> requirementService.changeStatus(10L, 9L, request, principal))
+                .isInstanceOf(ValidationException.class);
     }
 }
