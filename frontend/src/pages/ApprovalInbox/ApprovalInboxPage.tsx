@@ -84,7 +84,7 @@ export function ApprovalInboxPage() {
                       <button
                         type="button"
                         onClick={() => setDecisionTarget({ approvalId: a.id, decision: 'APPROVE' })}
-                        className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
+                        className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
                       >
                         승인
                       </button>
@@ -132,7 +132,7 @@ export function ApprovalInboxPage() {
             type="button"
             disabled={decideMutation.isPending}
             onClick={() => decideMutation.mutate()}
-            className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {decisionTarget.decision === 'APPROVE' ? '승인 확정' : '반려 확정'}
           </button>

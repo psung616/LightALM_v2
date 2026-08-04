@@ -294,7 +294,7 @@ export function RequirementDetailPage() {
                 type="button"
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 저장
               </button>
@@ -328,7 +328,7 @@ export function RequirementDetailPage() {
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">하위 요구사항</h2>
-          <button type="button" onClick={() => setShowTree(true)} className="text-sm text-blue-600 hover:underline">
+          <button type="button" onClick={() => setShowTree(true)} className="text-sm text-primary hover:underline">
             추적성 트리로 보기
           </button>
         </div>
@@ -351,7 +351,7 @@ export function RequirementDetailPage() {
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">연결된 테스트케이스</h2>
-          <Link to={`/projects/${id}/test-cases`} className="text-sm text-blue-600 hover:underline">
+          <Link to={`/projects/${id}/test-cases`} className="text-sm text-primary hover:underline">
             테스트케이스 만들기
           </Link>
         </div>
@@ -402,7 +402,7 @@ export function RequirementDetailPage() {
             type="button"
             disabled={!linkIssueId || linkMutation.isPending}
             onClick={() => linkMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             이슈 연결
           </button>
@@ -414,7 +414,7 @@ export function RequirementDetailPage() {
         <ul className="mb-3 flex flex-col gap-1.5">
           {gitLinksQuery.data?.map((g) => (
             <li key={g.id} className="text-sm">
-              <a href={g.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+              <a href={g.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                 {g.source === 'COMMIT' ? g.commitSha?.slice(0, 7) : `PR #${g.prNumber}`}
               </a>
               <span className="ml-2 text-slate-500">{g.message}</span>
@@ -442,7 +442,7 @@ export function RequirementDetailPage() {
             type="button"
             disabled={!gitValue || gitLinkMutation.isPending}
             onClick={() => gitLinkMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             연결
           </button>
@@ -471,7 +471,7 @@ export function RequirementDetailPage() {
             type="button"
             disabled={!commentText || commentMutation.isPending}
             onClick={() => commentMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             등록
           </button>

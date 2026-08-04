@@ -52,14 +52,14 @@ export function TraceabilityPage() {
           <button
             type="button"
             onClick={() => setView('matrix')}
-            className={`px-3 py-1.5 ${view === 'matrix' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'matrix' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             매트릭스 뷰
           </button>
           <button
             type="button"
             onClick={() => setView('tree')}
-            className={`px-3 py-1.5 ${view === 'tree' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'tree' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             트리 뷰
           </button>
@@ -156,7 +156,7 @@ function MatrixView({
                         <button
                           type="button"
                           onClick={() => onToggle(req.id, issue.id, link?.id ?? null)}
-                          className={`h-5 w-5 rounded ${link ? 'bg-slate-900' : 'bg-slate-100 hover:bg-slate-200'}`}
+                          className={`h-5 w-5 rounded ${link ? 'bg-primary' : 'bg-slate-100 hover:bg-slate-200'}`}
                           title={link ? link.linkType : '연결 없음 (클릭하여 연결)'}
                         />
                       </td>

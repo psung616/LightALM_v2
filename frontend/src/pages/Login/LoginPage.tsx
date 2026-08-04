@@ -53,7 +53,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {submitting ? '로그인 중...' : '로그인'}
         </button>

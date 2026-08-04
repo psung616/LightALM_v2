@@ -242,7 +242,7 @@ export function IssueDetailPage() {
                 type="button"
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 저장
               </button>
@@ -295,7 +295,7 @@ export function IssueDetailPage() {
         <ul className="mb-3 flex flex-col gap-1.5">
           {gitLinksQuery.data?.map((g) => (
             <li key={g.id} className="text-sm">
-              <a href={g.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+              <a href={g.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                 {g.source === 'COMMIT' ? g.commitSha?.slice(0, 7) : `PR #${g.prNumber}`}
               </a>
               <span className="ml-2 text-slate-500">{g.message}</span>
@@ -323,7 +323,7 @@ export function IssueDetailPage() {
             type="button"
             disabled={!gitValue || gitLinkMutation.isPending}
             onClick={() => gitLinkMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             연결
           </button>
@@ -337,7 +337,7 @@ export function IssueDetailPage() {
             type="button"
             disabled={triggerMutation.isPending}
             onClick={() => triggerMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             빌드 트리거
           </button>
@@ -345,7 +345,7 @@ export function IssueDetailPage() {
         <ul className="flex flex-col gap-1.5">
           {buildsQuery.data?.map((b) => (
             <li key={b.id} className="flex items-center justify-between text-sm">
-              <a href={b.buildUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+              <a href={b.buildUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                 {b.jobName} #{b.buildNumber}
               </a>
               <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${BUILD_STATUS_COLORS[b.status] ?? 'bg-slate-100 text-slate-600'}`}>
@@ -379,7 +379,7 @@ export function IssueDetailPage() {
             type="button"
             disabled={!commentText || commentMutation.isPending}
             onClick={() => commentMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             등록
           </button>

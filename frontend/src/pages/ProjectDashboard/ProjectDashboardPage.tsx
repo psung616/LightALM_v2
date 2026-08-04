@@ -39,14 +39,14 @@ export function ProjectDashboardPage() {
           <button
             type="button"
             onClick={() => setView('count')}
-            className={`px-3 py-1.5 ${view === 'count' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'count' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             카운트 뷰
           </button>
           <button
             type="button"
             onClick={() => setView('workflow')}
-            className={`px-3 py-1.5 ${view === 'workflow' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'workflow' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             Workflow 뷰
           </button>

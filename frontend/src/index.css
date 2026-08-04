@@ -1,7 +1,16 @@
 @import "tailwindcss";
 
+/* Linear (linear.app) DESIGN.md 기반 팔레트/타이포 토큰 — docs/design/DESIGN-linear.app.md 참고.
+   원본은 다크 마케팅 캔버스 기준이라, 우리 앱은 라이트 서피스는 유지하고
+   시그니처 라벤더-블루(#5e6ad2)를 유일한 브랜드 액센트로만 적용한다. */
 @theme {
-  --font-sans: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-primary: #5e6ad2;
+  --color-primary-hover: #828fff;
+  --color-primary-focus: #5e69d1;
+  --color-brand-secure: #7a7fad;
 }
 
 body {

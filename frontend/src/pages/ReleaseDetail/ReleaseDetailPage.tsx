@@ -192,7 +192,7 @@ export function ReleaseDetailPage() {
                 type="button"
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 저장
               </button>
@@ -276,7 +276,7 @@ export function ReleaseDetailPage() {
             type="button"
             disabled={!itemTargetId || addItemMutation.isPending}
             onClick={() => addItemMutation.mutate()}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
           >
             추가
           </button>

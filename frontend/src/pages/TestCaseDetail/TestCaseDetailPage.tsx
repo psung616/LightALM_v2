@@ -104,7 +104,7 @@ export function TestCaseDetailPage() {
           <p className="text-xs font-medium uppercase text-slate-400">{tc.tcKey}</p>
           <h1 className="text-xl font-semibold text-slate-900">{tc.title}</h1>
           {tc.requirementId && (
-            <Link to={`/projects/${id}/requirements/${tc.requirementId}`} className="text-xs text-blue-600 hover:underline">
+            <Link to={`/projects/${id}/requirements/${tc.requirementId}`} className="text-xs text-primary hover:underline">
               {tc.requirementKey} 요구사항 보기
             </Link>
           )}
@@ -203,7 +203,7 @@ export function TestCaseDetailPage() {
                 type="button"
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 저장
               </button>

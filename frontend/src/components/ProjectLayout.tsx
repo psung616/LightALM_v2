@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { FullScreenLoader } from './FullScreenLoader';
 
 const navItemClass = ({ isActive }: { isActive: boolean }) =>
-  `block rounded-md px-3 py-2 text-sm ${isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
+  `block rounded-md px-3 py-2 text-sm ${isActive ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100'}`;
 
 export function ProjectLayout() {
   const { projectId } = useParams<{ projectId: string }>();

@@ -114,7 +114,7 @@ function GeneralTab({ projectId, name, description, status }: { projectId: numbe
         type="button"
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
       >
         저장
       </button>
@@ -213,7 +213,7 @@ function MembersTab({ projectId }: { projectId: number }) {
           type="button"
           disabled={!userId || addMutation.isPending}
           onClick={() => addMutation.mutate()}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
         >
           추가
         </button>
@@ -289,7 +289,7 @@ function GithubTab({ projectId, repoOwner, repoName, webhookSecretMasked }: { pr
         type="button"
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
       >
         저장
       </button>
@@ -363,7 +363,7 @@ function JenkinsTab({ projectId, baseUrl, jobName, apiUser }: { projectId: numbe
         type="button"
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
       >
         저장
       </button>

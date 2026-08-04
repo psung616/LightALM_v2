@@ -81,7 +81,7 @@ export function IssueListPage() {
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
         >
           새 이슈
         </button>
@@ -99,14 +99,14 @@ export function IssueListPage() {
           <button
             type="button"
             onClick={() => setView('kanban')}
-            className={`px-3 py-1.5 ${view === 'kanban' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'kanban' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             칸반
           </button>
           <button
             type="button"
             onClick={() => setView('table')}
-            className={`px-3 py-1.5 ${view === 'table' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 ${view === 'table' ? 'bg-primary text-white' : 'text-slate-600'}`}
           >
             테이블
           </button>
@@ -246,7 +246,7 @@ export function IssueListPage() {
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              className="w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
               생성
             </button>

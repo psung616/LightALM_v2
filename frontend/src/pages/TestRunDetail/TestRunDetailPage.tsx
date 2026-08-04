@@ -117,7 +117,7 @@ export function TestRunDetailPage() {
               type="button"
               disabled={selectedCaseIds.length === 0 || addCasesMutation.isPending}
               onClick={() => addCasesMutation.mutate()}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+              className="rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:bg-primary-hover disabled:opacity-50"
             >
               추가 ({selectedCaseIds.length})
             </button>
@@ -147,7 +147,7 @@ export function TestRunDetailPage() {
                       recordMutation.mutate({ testCaseId: r.testCaseId, result: opt, actualResult: actualResults[r.testCaseId] ?? '' })
                     }
                     className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-                      r.result === opt ? 'bg-slate-900 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
+                      r.result === opt ? 'bg-primary text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     {opt}
