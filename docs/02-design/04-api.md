@@ -231,3 +231,56 @@
 | POST | `/api/projects/{projectId}/requirements/{reqId}/approval-requests` | 승인 요청 생성 `{requestedStatus}` (요구사항이 DRAFT 상태일 때만 가능, 서비스 레벨 검증) | MEMBER+ |
 | GET | `/api/projects/{projectId}/approval-requests` | 승인함 목록, 쿼리: `status` | PROJECT_ADMIN+ |
 | PATCH | `/api/projects/{projectId}/approval-requests/{approvalId}/decision` | 승인/반려 `{decision: 'APPROVE'|'REJECT', comment}` (승인 시 대상 요구사항 status를 requestedStatus로 전이 + audit_logs에 APPROVE/REJECT 기록을 자동 생성) | PROJECT_ADMIN+ |
+
+---
+
+## v3 확장 API (2026-08-08, 03-data-model.md §3.18~3.24 참고, 아직 미구현)
+
+### 4.17 리뷰 사이클 (Review Cycle)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/projects/{projectId}/{targetType}/{targetId}/review-cycles` | 리뷰 사이클 생성 `{name, participantUserIds:[]}` | MEMBER+ |
+| GET | `/api/projects/{projectId}/{targetType}/{targetId}/review-cycles` | 대상의 리뷰 사이클 목록(참여자 결정 현황 포함) | VIEWER+ |
+| PATCH | `/api/projects/{projectId}/review-cycles/{cycleId}/participants/me` | 본인 결정 기록 `{decision, comment}` | 해당 사이클의 participant 본인만 |
+| PATCH | `/api/projects/{projectId}/review-cycles/{cycleId}/status` | 사이클 닫기(`CLOSED`) — 대상 status는 변경하지 않음(§3.19 원칙) | MEMBER+ |
+
+### 4.18 베이스라인 (Baseline)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/projects/{projectId}/baselines` | 베이스라인 생성 `{name, description, itemRefs:[{targetType,targetId}]}` — 생성 시점 각 항목의 주요 필드를 스냅샷으로 저장 | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/baselines` | 목록 | VIEWER+ |
+| GET | `/api/projects/{projectId}/baselines/{baselineId}` | 상세(포함 항목 스냅샷 목록) | VIEWER+ |
+| GET | `/api/projects/{projectId}/baselines/{baselineId}/diff` | 스냅샷 vs 현재 값 필드 단위 비교 결과 반환 | VIEWER+ |
+
+### 4.19 위험 관리 (Risk)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/risks` | 목록, 쿼리: `status,likelihood,impact` | VIEWER+ |
+| POST | `/api/projects/{projectId}/risks` | 생성 `{title,description,likelihood,impact,mitigationPlan,ownerId}` | MEMBER+ |
+| GET | `/api/projects/{projectId}/risks/{riskId}` | 상세(riskScore = likelihood × impact 계산값 포함) | VIEWER+ |
+| PUT | `/api/projects/{projectId}/risks/{riskId}` | 수정 | MEMBER+ |
+| PATCH | `/api/projects/{projectId}/risks/{riskId}/status` | 상태 변경 | MEMBER+ |
+
+위험을 요구사항/이슈에 연결하는 것은 별도 API가 아니라 §4.7 추적성 링크 API를 그대로 사용한다(`source_type` 또는 `target_type`에 `'RISK'` 값을 허용, §3.22 참고).
+
+### 4.20 요구사항 문서 뷰 & 변형 관리
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/requirements/document-view` | 요구사항을 상위/하위 순서(order_index) 기준 문서 목차 형태로 정렬해서 반환, 쿼리: `variantId`(지정 시 해당 변형에서 EXCLUDED인 항목 제외) | VIEWER+ |
+| PATCH | `/api/projects/{projectId}/requirements/{reqId}/order` | 같은 부모 내 표시 순서 변경 `{orderIndex}` | MEMBER+ |
+| GET | `/api/projects/{projectId}/variants` | 변형 목록 | VIEWER+ |
+| POST | `/api/projects/{projectId}/variants` | 변형 생성 `{variantKey,name,description}` | PROJECT_ADMIN+ |
+| PUT | `/api/projects/{projectId}/requirements/{reqId}/variants/{variantId}` | 요구사항-변형 매핑 설정 `{applicability,note}` | MEMBER+ |
+
+### 4.21 대시보드 위젯 & 리포트 내보내기
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/me/dashboard-widgets` | 내 대시보드 위젯 설정 조회(project_id 없는 것 = 개인화 대시보드용) | 로그인 사용자 |
+| PUT | `/api/me/dashboard-widgets` | 위젯 설정 일괄 저장 `{widgets:[{widgetType,position,config}]}` | 로그인 사용자 |
+| GET | `/api/projects/{projectId}/dashboard-widgets` | 프로젝트 대시보드 위젯 설정 조회 | VIEWER+ |
+| PUT | `/api/projects/{projectId}/dashboard-widgets` | 프로젝트 대시보드 위젯 설정 저장 | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/traceability/export?format=xlsx\|pdf` | 추적성 매트릭스 내보내기 | VIEWER+ |
+| GET | `/api/projects/{projectId}/test-runs/{runId}/export?format=xlsx\|pdf` | 테스트 실행 결과 내보내기 | VIEWER+ |
+| GET | `/api/projects/{projectId}/audit-logs/export?format=xlsx` | 감사 로그 내보내기 | PROJECT_ADMIN+ |
+
+내보내기는 별도 저장 없이 요청 시점에 서비스 레이어가 실시간 생성해서 스트리밍 응답한다(Content-Disposition: attachment).

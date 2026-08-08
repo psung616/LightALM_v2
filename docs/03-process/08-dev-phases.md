@@ -108,3 +108,37 @@
 3. 04-api.md §4.16 API 구현
 4. 05-frontend.md §5.10 프론트 화면 구현(승인함 페이지, 요구사항 상세 화면의 "승인 요청" 버튼)
 5. **의존성**: 승인 결정 시 `audit_logs`에 `STATUS_CHANGE`(승인 시에만) + `APPROVE`/`REJECT` 기록을 남기며, Phase 14의 `AuditLogService`를 재사용한다.
+
+---
+
+> Phase 16~19는 v3 확장(01-scope.md §1.2 v3 항목, 2026-08-08)이며 **아직 구현되지 않았다.** 착수 전 02-competitive-reference.md(참고 배경/저작권 준수 원칙)를 먼저 확인할 것. architect 서브에이전트가 설계를 소유하고, developer 서브에이전트가 구현하며, qa-tester 서브에이전트가 검증한다(ROLES.md 참고). ⚠️ 이 v3 확장 결정 자체를 기록한 ADR-008은 문서 인계 과정에서 유실되어 존재하지 않는다 — 착수 전에 다시 작성할 것(또는 architect에게 요청).
+
+### Phase 16 — 리뷰 사이클 & 베이스라인
+1. `review_cycles`/`review_participants` 마이그레이션 + 엔티티 작성(03-data-model.md §3.18~3.19)
+2. `baselines`/`baseline_items` 마이그레이션 + 엔티티 작성(§3.20~3.21). 스냅샷 저장 로직은 베이스라인 생성 시점에 대상 엔티티의 현재 필드 값을 JSONB로 직렬화하는 서비스 메서드로 구현
+3. diff 계산 로직 구현(저장된 스냅샷 vs 현재 값을 필드 단위로 비교, 별도 테이블 없이 조회 시점에 계산)
+4. 04-api.md §4.17~4.18 API 구현
+5. 05-frontend.md §5.11~5.12 프론트 화면 구현
+6. **DoD**: 리뷰 사이클 생성 후 여러 참여자가 각자 결정을 기록해도 대상(요구사항/이슈)의 status가 자동으로 바뀌지 않는지 확인(§3.19 원칙 검증 — qa-tester가 특히 이 항목을 확인할 것). 베이스라인 생성 후 원본 요구사항을 수정하고 diff API를 호출해 변경분이 정확히 반환되는지 확인
+
+### Phase 17 — 위험 관리
+1. `risks` 마이그레이션 + 엔티티 작성(03-data-model.md §3.22)
+2. 기존 `traceability_links` CHECK 제약에 `'RISK'` 추가하는 마이그레이션 작성(**기존 V1~V7 파일은 수정하지 않고 새 `V{n+1}__` 파일에서 `ALTER TABLE`로 처리**, ADR-002 원칙)
+3. risk_score(likelihood × impact) 계산 로직을 서비스 레이어에 구현(저장하지 않고 응답 시 계산)
+4. 04-api.md §4.19 API 구현
+5. 05-frontend.md §5.13 프론트 화면 구현(히트맵 뷰 포함)
+6. **DoD**: 위험 생성 후 기존 §4.7 추적성 링크 API로 요구사항에 연결되는지 확인, likelihood/impact 조합별로 risk_score가 정확히 계산되는지 확인(1~9 범위)
+
+### Phase 18 — 요구사항 문서 뷰 & 변형 관리
+1. `requirements.order_index` 컬럼 추가 마이그레이션(§3.23 참고, 새 `V{n+1}__` 파일)
+2. `variants`/`requirement_variants` 마이그레이션 + 엔티티 작성(§3.23)
+3. 04-api.md §4.20 API 구현(document-view는 기존 계층 조회 로직을 order_index 정렬로 재구성)
+4. 05-frontend.md §5.14 프론트 화면 구현
+5. **DoD**: 3단계 이상 깊이의 요구사항 계층을 만들고 문서 뷰에서 순서대로 렌더링되는지 확인, 변형을 하나 만들어 일부 요구사항을 EXCLUDED로 지정한 뒤 `variantId` 쿼리로 필터링되는지 확인
+
+### Phase 19 — 대시보드 위젯 & 리포트 내보내기
+1. `dashboard_widget_configs` 마이그레이션 + 엔티티 작성(03-data-model.md §3.24)
+2. Excel 내보내기(Apache POI 등) / PDF 내보내기 라이브러리 선정 및 서비스 구현(별도 저장 없이 실시간 스트리밍 응답)
+3. 04-api.md §4.21 API 구현
+4. 05-frontend.md §5.15 프론트 화면 구현(위젯 편집 모드, 내보내기 버튼)
+5. **DoD**: 위젯 설정을 저장/재조회했을 때 순서·구성이 유지되는지 확인, 추적성 매트릭스를 Excel로 내보내 실제 파일이 열리고 데이터가 정확한지 확인

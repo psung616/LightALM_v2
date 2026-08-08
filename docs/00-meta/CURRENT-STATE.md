@@ -18,6 +18,7 @@
 | Phase 13 (릴리스/버전 관리) | ✅ 완료 (2026-08-04) |
 | Phase 14 (변경 이력/감사 로그) | ✅ 완료 (2026-08-04) |
 | Phase 15 (승인 워크플로우) | ✅ 완료 (2026-08-04) |
+| Phase 16~19 (v3: 리뷰 사이클+베이스라인 / 위험 관리 / 문서 뷰+변형 관리 / 대시보드 위젯+리포트 내보내기) | 🔲 설계 완료, **구현 전** (2026-08-08 설계) |
 
 근거: 08-dev-phases.md
 
@@ -31,14 +32,13 @@
 
 ## 3. DB 접속 정보
 
-**운영 배포**(Jenkinsfile)와 **로컬 개발**(`docker-compose.yml`)은 서로 다른 DB를 쓴다 — 하나만 있는 게 아니다.
-
-| 구분 | Host | Port | DB | 계정 |
-|---|---|---|---|---|
-| 운영(Jenkinsfile) | `ondalprincess.synology.me` | `55432` | `ALM_Project` | `postgres` / `postgres` |
-| 로컬(`docker-compose.yml`) | `postgres`(같은 compose 내 컨테이너) | `5432` | `lightalm` | `lightalm` / `lightalm` |
-
-비고: 운영 DB는 로컬 개발용 자체 DB가 아니라 **사내 공용 Postgres**를 그대로 씀(KPI 집계 등 다른 도구가 같은 DB를 봄) — 의도적 선택(ADR-002). 로컬은 격리를 위해 별도 자체 DB를 유지한다. 2026-08-08 이전에는 "로컬/운영 구분 없이 공용 DB 하나만 쓴다"고 잘못 기록돼 있었는데, 실제 `docker-compose.yml`을 확인해 정정했다(ADR-002 갱신 이력 참고).
+| 항목 | 값 |
+|---|---|
+| Host | `ondalprincess.synology.me` |
+| Port | `55432` |
+| DB | `ALM_Project` |
+| 계정 | `postgres` / `postgres` |
+| 비고 | 로컬 개발용 자체 DB가 아니라 **사내 공용 Postgres**를 그대로 씀(KPI 집계 등 다른 도구가 같은 DB를 봄). 로컬/사내 테스트 서버 구분 없이 이 DB 하나만 사용 중 |
 
 근거: 02-architecture.md §2.4, 10-deployment.md 부록 B·E, ADR-002
 
@@ -65,11 +65,10 @@
 ## 6. 알려진 리스크 / TODO (아직 해결 안 됨)
 
 - GitHub PAT, Jenkins API 토큰이 DB에 평문 저장됨 — 운영 전환 시 암호화 필요(07-integrations.md §7.4)
-- DB 계정이 평문으로 커밋되어 있음 — 운영(`postgres/postgres`)은 `Jenkinsfile`, 로컬(`lightalm/lightalm`)은 `docker-compose.yml`에 있음. 운영 계정은 Jenkins Credentials로 이전 필요(10-deployment.md 부록 E)
+- DB 계정(`postgres/postgres`)이 `docker-compose.yml`/Jenkinsfile에 평문으로 커밋되어 있음 — Jenkins Credentials로 이전 필요(10-deployment.md 부록 E)
 - Flyway `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 체크섬 검증을 우회 중 — 스키마 드리프트를 놓칠 수 있는 상태
 - `synology` push가 곧바로 운영 배포로 이어지는데 별도의 배포 승인/검토 게이트가 없음(ADR-005 리스크 항목 참고)
 - `synology` remote 저장소명(`ALM_Repository`)이 GitHub 저장소명(`LightALM_v2`)과 달라 혼동 가능성 있음
 
 ## 갱신 이력
 - 2026-08-08: 문서 구조 2차 개편과 함께 최초 작성. ADR-001~007 정리 및 02-architecture.md §2.4 낡은 경고에 상호참조 추가
-- 2026-08-08: §3 DB 접속 정보 정정 — 실제 `docker-compose.yml`을 재확인한 결과 로컬은 자체 `lightalm` DB를 그대로 쓰고 있었고(운영 DB로 전환된 적 없음), 운영(Jenkinsfile)만 사내 공용 `ALM_Project` DB를 씀. ADR-002, 02-architecture.md §2.4도 함께 정정

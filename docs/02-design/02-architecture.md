@@ -83,13 +83,13 @@ light-alm/
 | 구분 | local (개발 PC / 로컬 Docker) | 사내 테스트 서버(목표) |
 |---|---|---|
 | Jenkins | 프로젝트별로 앱 UI(설정 화면)에서 개별 등록 — 전역 설정 아님 | 동일. `https://jenkins.ondalprincess.synology.me/`는 "프로젝트 설정 → Jenkins 연동" 화면에 값으로만 입력됨(03-data-model.md §3.2, 04-api.md §4.4) |
-| Web(배포 URL) | `http://localhost:5173`(프론트, backend/DB 포함 전체 스택 `docker compose up`으로 기동, 정상 동작 확인 완료) | `https://alm.ondalprincess.synology.me/` — **실제로 서비스 중** (ADR-006, CURRENT-STATE.md §2 참고) |
-| DB Host | `postgres`(같은 compose 안의 로컬 컨테이너, 포트 5432, 계정 `lightalm/lightalm`, DB `lightalm`) | `ondalprincess.synology.me`(사내 공용 DB, Jenkinsfile이 직접 주입 — `docker-compose.yml`이 아님, 10-deployment.md 부록 E 참고) |
-| DB Port | `5432` | `55432` |
-| DB 계정 | `lightalm` / `lightalm` | `postgres` / `postgres` |
-| DB 이름 | `lightalm` | `ALM_Project` |
+| Web(배포 URL) | `http://localhost:5173`(프론트, backend/DB 포함 전체 스택 `docker compose up`으로 기동, 정상 동작 확인 완료) | `https://alm.ondalprincess.synology.me/` — **아직 우리 컨테이너로 연결되지 않음(§ 아래 경고 참고, 미완료)** |
+| DB Host | `docker-compose.yml`의 `backend` 서비스가 로컬 `postgres` 컨테이너 대신 곧바로 아래 외부 DB를 사용하도록 이미 전환되어 있음 → `ondalprincess.synology.me` | 좌동 (local과 test 구분 없이 이미 이 DB 하나만 사용 중) |
+| DB Port | `55432` | 좌동 |
+| DB 계정 | `postgres` / `postgres` | 좌동 |
+| DB 이름 | `ALM_Project` | 좌동 |
 
-> ⚠️ **[정정, 2026-08-08]** 이 절은 원래 "`docker-compose.yml`의 `backend`가 로컬 `postgres` 대신 외부 DB(`ondalprincess.synology.me`)를 이미 사용하도록 전환되어 있다"고 서술하고 있었으나, **실제 `docker-compose.yml`을 확인한 결과 사실이 아니다** — `backend` 서비스는 지금도 같은 compose의 로컬 `postgres` 컨테이너(포트 5432, `lightalm/lightalm`)를 그대로 사용한다. 외부 공용 DB(`ondalprincess.synology.me:55432/ALM_Project`)를 실제로 쓰는 것은 **운영 배포(Jenkinsfile)뿐**이며, 로컬 `docker compose up`은 이 DB를 건드리지 않는다. ADR-002는 이 절을 근거로 "이미 전환됨"이라고 잘못 기록했었는데 함께 정정했다 — 실제 결정은 "운영 배포만 공용 DB를 쓰고, 로컬 개발은 격리된 자체 DB를 유지한다"이다.
+> 로컬 `postgres` 컨테이너(포트 5432, 계정 `lightalm/lightalm`, DB `lightalm`)는 `docker-compose.yml`에 **정의는 남아있지만 `backend`가 더 이상 사용하지 않는다.** 필요하면 `docker compose up -d postgres`로 별도 기동해 다른 용도로 쓸 수 있다.
 
 > **Git 원격 저장소는 이 표에서 뺐다**: Git remote는 "local vs 사내 테스트 서버"라는 배포 환경 구분과는 다른 축(로컬 개발자 PC의 저장소 설정)이라 이 표 구조에 맞지 않는다. 실제 Git remote 운영 방식은 아래 "Git 다중 remote" 문단과 10-deployment.md 부록 D에 정리했다.
 
@@ -108,18 +108,18 @@ light-alm:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 ```
 
-`docker-compose.yml`도 `local`/`test`용으로 파일을 나누지 않고 **단일 파일**을 유지한다. 실제 `backend` 서비스의 environment 블록은 로컬 자체 DB를 가리킨다(위 정정 문단 참고) — 사내 외부 DB로 붙이고 싶을 때는 이 값들을 직접 바꿔서 실행하면 된다(10-deployment.md 부록 A의 PowerShell 예시 참고).
+`docker-compose.yml`도 `local`/`test`용으로 파일을 나누지 않고 **단일 파일**을 유지하며, `backend` 서비스의 environment 블록에 실제 값을 직접 넣는다.
 
 ```yaml
   backend:
     build: ./backend
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: lightalm
-      DB_USER: lightalm
-      DB_PASSWORD: lightalm
-      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      DB_HOST: ondalprincess.synology.me
+      DB_PORT: 55432
+      DB_NAME: ALM_Project
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CORS_ALLOWED_ORIGINS: https://alm.ondalprincess.synology.me,http://localhost:5173
 ```
 
 **프론트엔드 → 백엔드 API 경로(`.env.local`/`.env.test` 미사용)**: 프론트엔드 환경 파일 분리 대신 **Docker 빌드 시점 ARG**로 처리한다.
@@ -173,7 +173,7 @@ server {
 - 기존 GitHub 저장소로는 `origin`을 거치지 않고 매번 **URL을 직접 지정해 push**: `git push https://github.com/psung616/LightALM.git main`
 - 이렇게 나눈 이유: 사내 Git 서버(`git.ondalprincess.synology.me`)에 저장소가 실제로 준비되어 있는지 아직 확인되지 않아, 우선 기존 GitHub에만 안전하게 반영하고 사내 서버 push는 보류했다. 10-deployment.md 부록 D의 다중 push-url 스크립트는 **참고용으로만 남겨두고, 실제로 실행하지는 않았다.**
 
-**CORS**: profile별로 나누지 않고 `CORS_ALLOWED_ORIGINS` 환경변수 하나로 처리한다(`SecurityConfig`가 `,`로 split해서 허용 목록에 반영, 06-auth.md §6 참고). `docker-compose.yml`(로컬)은 `http://localhost:5173` 하나만 넣고, 운영(Jenkinsfile)은 `https://alm.ondalprincess.synology.me` 하나만 넣는다 — 두 값을 한 곳에 콤마로 같이 넣어두지는 않는다(정정, 2026-08-08. 위 §2.4 정정 문단 참고).
+**CORS**: profile별로 나누지 않고, `docker-compose.yml`의 `CORS_ALLOWED_ORIGINS` 환경변수 하나에 로컬(`http://localhost:5173`)과 테스트 서버 도메인(`https://alm.ondalprincess.synology.me`)을 콤마로 함께 넣는다(`SecurityConfig`가 `,`로 split해서 허용 목록에 반영, 06-auth.md §6 참고).
 
 > ⚠️ `git.ondalprincess.synology.me`가 GitHub.com이 아닌 자체 호스팅 Git 서버(Gitea/Gogs/GitLab CE 등)인 경우, 04-api.md §4.9·07-integrations.md §7.1·08-dev-phases.md Phase 7에서 전제하는 `https://api.github.com` 기반 REST API/`X-Hub-Signature-256` Webhook 포맷이 그대로 맞지 않을 수 있다. GitHub 연동은 이 문서 기준 실제로는 **github.com을 대상으로만 구현·검증**했으며, 자체 호스팅 서버 연동은 별도 확인이 필요하다.
 

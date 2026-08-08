@@ -285,3 +285,131 @@ UNIQUE (release_id, target_type, target_id)
 | resolved_at | TIMESTAMP | NULL |
 
 > MVP만 놓고 보면 `target_type='REQUIREMENT'`, `requested_status='APPROVED'` 조합 하나만 실제로 생성되며(요구사항이 `DRAFT` 상태일 때만 승인 요청 가능), ISSUE 지원은 테이블 설계상 자리만 마련해둔 것으로 이번 버전에서 구현하지 않는다.
+
+---
+
+## v3 확장 (2026-08-08, 01-scope.md §1.2 v3 항목, 아직 미구현)
+
+> 아래 §3.18~§3.24는 02-competitive-reference.md에서 참고 배경과 저작권 준수 원칙을 먼저 확인할 것. 기능명은 모두 프로젝트 자체 용어로 재정의했으며 원 제품의 UI/스키마를 그대로 옮긴 것이 아니다.
+
+### 3.18 `review_cycles`
+승인 워크플로우(§3.17, approval_requests)와는 별개의 기능이다. approval_requests는 `DRAFT→APPROVED` 전이 1건을 게이팅하는 좁은 승인 게이트이고, review_cycles는 상태 전이와 무관하게 여러 검토자의 의견을 수집·기록하는 용도다.
+
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE') |
+| target_id | BIGINT | NOT NULL |
+| name | VARCHAR(150) | NOT NULL |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('OPEN','CLOSED'), DEFAULT 'OPEN' |
+| created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+| closed_at | TIMESTAMP | NULL |
+
+### 3.19 `review_participants`
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| review_cycle_id | BIGINT | FK → review_cycles.id, ON DELETE CASCADE, NOT NULL |
+| user_id | BIGINT | FK → users.id, ON DELETE CASCADE, NOT NULL |
+| decision | VARCHAR(20) | NOT NULL, CHECK IN ('PENDING','APPROVE','REJECT','COMMENT_ONLY'), DEFAULT 'PENDING' |
+| comment | TEXT | NULL |
+| decided_at | TIMESTAMP | NULL |
+
+UNIQUE (review_cycle_id, user_id)
+
+> **범용 워크플로우 엔진이 아님을 명시**: review_participants의 decision은 기록·표시 용도이며, 서비스 레이어가 이 값을 근거로 target(요구사항/이슈)의 status를 자동으로 바꾸는 로직은 만들지 않는다(01-scope.md §1.3 원칙 유지). 상태를 바꾸려면 여전히 기존 `PATCH .../status`(또는 승인 워크플로우 §3.17)를 사용자가 직접 호출해야 한다.
+
+### 3.20 `baselines`
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| name | VARCHAR(150) | NOT NULL |
+| description | TEXT | NULL |
+| created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+### 3.21 `baseline_items`
+베이스라인 생성 시점의 요구사항/이슈/테스트케이스 필드 값을 JSON으로 그대로 얼려서 저장한다(스냅샷). 이후 원본이 바뀌어도 이 값은 변하지 않는다.
+
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| baseline_id | BIGINT | FK → baselines.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
+| target_id | BIGINT | NOT NULL |
+| snapshot | JSONB | NOT NULL (베이스라인 생성 시점의 주요 필드 스냅샷 — title/description/status/priority 등) |
+| captured_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (baseline_id, target_type, target_id)
+
+> **비교(diff) 기능**: 별도 테이블 없이, 조회 시점에 baseline_items.snapshot과 원본 테이블의 현재 값을 서비스 레이어에서 필드 단위로 비교해 변경분을 계산해서 반환한다(04-api.md §4.18).
+
+### 3.22 `risks`
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| risk_key | VARCHAR(30) | UNIQUE, NOT NULL (예: `LALM-RISK3`) |
+| title | VARCHAR(255) | NOT NULL |
+| description | TEXT | NULL |
+| likelihood | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH'), DEFAULT 'MEDIUM' |
+| impact | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH'), DEFAULT 'MEDIUM' |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('OPEN','MITIGATED','ACCEPTED','CLOSED'), DEFAULT 'OPEN' |
+| mitigation_plan | TEXT | NULL |
+| owner_id | BIGINT | FK → users.id, ON DELETE SET NULL, NULL 허용 |
+| created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+> **간이 점수화**: `likelihood`/`impact` 각각 LOW=1/MEDIUM=2/HIGH=3으로 매핑해 `risk_score = likelihood × impact`(1~9)를 API 응답 시 계산값으로 내려준다 — 별도 컬럼으로 저장하지 않는다(값이 바뀌면 항상 최신 재계산). 정식 FMEA 방법론(발생도/심각도/검출도 3축 등)은 구현하지 않는다(01-scope.md §1.3 v3 비스코프 참고).
+> **위험을 요구사항/이슈에 연결하는 방법**: 별도 링크 테이블을 새로 만들지 않고, 기존 §3.6 `traceability_links`의 `source_type`/`target_type` CHECK 제약에 `'RISK'`를 추가해 재사용한다(§3.11에서 `TEST_CASE`를 추가했던 것과 동일한 패턴). 새 마이그레이션에서 `ALTER TABLE traceability_links DROP CONSTRAINT ...; ALTER TABLE traceability_links ADD CONSTRAINT ... CHECK (source_type IN ('REQUIREMENT','ISSUE','TEST_CASE','RISK'))`처럼 처리한다(기존 V1~V7 파일은 수정하지 않고 새 마이그레이션에서 제약만 갱신, ADR-002 원칙 준수).
+
+### 3.23 `variants` / `requirement_variants`
+| 컬럼 (variants) | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| variant_key | VARCHAR(30) | NOT NULL (예: `STANDARD`, `PREMIUM`) |
+| name | VARCHAR(150) | NOT NULL |
+| description | TEXT | NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (project_id, variant_key)
+
+| 컬럼 (requirement_variants) | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| requirement_id | BIGINT | FK → requirements.id, ON DELETE CASCADE, NOT NULL |
+| variant_id | BIGINT | FK → variants.id, ON DELETE CASCADE, NOT NULL |
+| applicability | VARCHAR(20) | NOT NULL, CHECK IN ('INCLUDED','EXCLUDED','MODIFIED'), DEFAULT 'INCLUDED' |
+| note | TEXT | NULL (MODIFIED인 경우 이 변형에서 무엇이 다른지 짧게 서술) |
+
+UNIQUE (requirement_id, variant_id)
+
+> **요구사항 문서 뷰와의 관계**: 별도 테이블을 추가하지 않고, 기존 `requirements.parent_requirement_id`(§3.4)로 이미 존재하는 상위/하위 계층을 그대로 활용해 문서 목차처럼 정렬해서 보여준다. 다만 형제 요구사항 간 표시 순서를 사용자가 지정할 수 있어야 하므로, `requirements` 테이블에 컬럼을 하나 추가한다: `order_index INTEGER NOT NULL DEFAULT 0`(같은 부모를 가진 요구사항끼리 이 값 기준 오름차순 정렬. 새 마이그레이션에서 `ALTER TABLE requirements ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0` 추가, 기존 파일 수정 금지).
+
+### 3.24 `dashboard_widget_configs`
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| user_id | BIGINT | FK → users.id, ON DELETE CASCADE, NOT NULL |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NULL 허용(NULL이면 "내 작업" 개인화 대시보드용, 값이 있으면 특정 프로젝트 대시보드용) |
+| widget_type | VARCHAR(50) | NOT NULL (예: `STATUS_DONUT`, `DUE_SOON_LIST`, `WORKFLOW_FUNNEL`, `RISK_HEATMAP`) |
+| position | INTEGER | NOT NULL DEFAULT 0 |
+| config | JSONB | NULL (위젯별 옵션, 예: 표시할 상태 필터) |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+> 리포트 내보내기(Excel/PDF)는 별도 테이블이 필요 없다 — 조회 시점에 서비스 레이어가 실시간으로 생성해서 스트리밍 응답한다(04-api.md §4.21).
+
+### ERD 요약 추가분
+```
+Project 1---N ReviewCycle (target = Requirement|Issue) 1---N ReviewParticipant N---1 User
+Project 1---N Baseline 1---N BaselineItem (target = Requirement|Issue|TestCase, 스냅샷 JSONB)
+Project 1---N Risk (traceability_links를 통해 Requirement|Issue와 연결, source_type/target_type에 'RISK' 추가)
+Project 1---N Variant 1---N RequirementVariant N---1 Requirement
+User 1---N DashboardWidgetConfig (optional FK: project_id)
+```
