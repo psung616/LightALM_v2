@@ -59,9 +59,9 @@ pipeline {
                         lightalm-frontend:latest
                 """
 
-                sh 'sleep 10'
+                sh 'sleep 30'
                 sh 'docker ps -a --filter name=lightalm- || true'
-                sh 'docker logs --tail 100 lightalm-backend || true'
+                sh 'docker logs --tail 300 lightalm-backend || true'
             }
         }
     }
