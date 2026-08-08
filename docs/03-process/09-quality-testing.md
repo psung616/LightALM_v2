@@ -1,4 +1,5 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: qa-tester | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 9. 코딩 컨벤션 및 품질 기준
 - 패키지 구조는 02-architecture.md §2.2를 따른다 (계층형: domain/repository/service/web/dto)

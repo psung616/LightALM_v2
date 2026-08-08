@@ -1,4 +1,5 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: architect · 구현은 backend-developer | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 7. 외부 연동 상세 (GitHub / Jenkins)
 

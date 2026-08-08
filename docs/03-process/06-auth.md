@@ -1,4 +1,5 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: architect · 검증은 qa-tester | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 6. 인증/인가 상세 설계
 

@@ -1,3 +1,6 @@
+> Owner: frontend-developer | Status: reference | Last-reviewed: 2026-08-08
+> 이 문서는 SPEC.md 문서 체계(§0~§11)에 속하지 않는 **참고용 디자인 토큰 파일**이다. Linear 앱 스타일(다크 테마, 라벤더 블루 액센트)의 색상/타이포그래피 토큰을 정의하며, 05-frontend.md의 화면 구현 시 참고 자료로 사용한다. SPEC.md의 공식 문서 목록에는 포함하지 않는다.
+
 ---
 version: alpha
 name: Linear-design-analysis

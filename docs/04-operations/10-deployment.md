@@ -1,8 +1,9 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: devops (미생성, orchestrator가 임시 겸임) | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 11. 실행/배포
 - 로컬 개발: `docker compose up -d postgres` → 백엔드는 `mvnw.cmd spring-boot:run`(Windows) / `./mvnw spring-boot:run`(macOS·Linux), 프론트는 `npm run dev`. Maven을 시스템에 설치하지 않아도 되도록 **Maven Wrapper(`mvnw`)를 프로젝트에 포함**한다.
-- 전체 스택(로컬/사내 테스트 서버 공용): `docker compose up --build` (postgres + backend + frontend 이미지 빌드 포함, 부록 B 참고). DB를 외부(사내 NAS)로 돌리고 싶으면 `backend` 서비스의 `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` 환경변수만 바꾸면 되고, 별도의 `docker-compose.test.yml` 파일은 두지 않는다.
+- 전체 스택(로컬 전용, 자체 postgres 컨테이너 포함): `docker compose up --build` (부록 B 참고). DB를 외부(사내 NAS)로 돌려보고 싶으면 `backend` 서비스의 `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` 환경변수만 바꾸면 된다 — 별도의 `docker-compose.test.yml` 파일은 두지 않는다. **실제 운영 배포(`alm.ondalprincess.synology.me`)는 이 compose 파일을 쓰지 않고 Jenkinsfile이 담당한다(부록 E 참고).**
 - Jenkins CI 파이프라인 예시 단계: `checkout` → `mvnw.cmd test`(백엔드, `*IT.java` 통합 테스트는 제외됨) → `npm ci && npm run build` (프론트) → `docker build` → (선택) 배포 → Post-build Action에서 07-integrations.md §7.2의 Webhook payload 전송
 
 ---
@@ -45,11 +46,19 @@ $env:DB_HOST="ondalprincess.synology.me"; $env:DB_PORT="55432"; $env:DB_NAME="AL
 mvnw.cmd spring-boot:run
 ```
 
-> 위 사내 DB 계정(`postgres/postgres`)은 테스트 전용이라는 전제로 문서에 남겨두지만, 실제로는 `docker-compose.yml`에 평문으로 들어가 있다(02-architecture.md §2.4). 운영 전환 시 계정/비밀번호를 교체하고 커밋에서 제외하는 방식으로 바꿔야 한다.
+> 위 사내 DB 계정(`postgres/postgres`)은 `docker-compose.yml`에는 들어있지 않고(로컬은 자체 `lightalm/lightalm` 계정 사용, 02-architecture.md §2.4 정정 참고), 실제로는 **운영 배포용 `Jenkinsfile`에 평문으로 들어가 있다**(부록 E). 운영 전환 시 계정/비밀번호를 교체하고 Jenkins Credentials로 옮기는 방식으로 바꿔야 한다.
 
-## 부록 B. `docker-compose.yml` 골격 (로컬/사내 테스트 서버 겸용, 실제 사용 중인 구조)
+## 부록 B. `docker-compose.yml` 골격 (로컬 개발 전용, 실제 사용 중인 구조)
 
-로컬용/테스트서버용으로 파일을 나누지 않고 **이 파일 하나만 유지**한다. `postgres` 서비스는 정의는 남겨두되(다른 용도로 필요 시 `docker compose up -d postgres`), `backend`는 기본적으로 사내 외부 DB를 바라보도록 되어 있다. 순수 로컬 DB로 되돌리려면 `backend.environment`의 `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`를 `postgres`/`5432`/`lightalm`/`lightalm`/`lightalm`로 바꾸면 된다.
+**로컬 개발용으로만 쓰인다** — 운영 배포는 이 파일을 쓰지 않는다(부록 E 참고). `postgres` 서비스가 자체 DB(`lightalm`/`lightalm`)를 제공하고 `backend`가 기본으로 이 로컬 DB를 바라본다. 사내 외부 DB에 붙여보고 싶으면 `backend.environment`의 `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`/`CORS_ALLOWED_ORIGINS`를 아래 표처럼 바꾸면 된다(단, 공용 DB이므로 로컬에서 함부로 스키마를 건드리지 않도록 주의 — ADR-002 참고).
+
+| 환경변수 | 로컬(기본값) | 사내 외부 DB로 바꿀 때 |
+|---|---|---|
+| `DB_HOST` | `postgres` | `ondalprincess.synology.me` |
+| `DB_PORT` | `5432` | `55432` |
+| `DB_NAME` | `lightalm` | `ALM_Project` |
+| `DB_USER`/`DB_PASSWORD` | `lightalm`/`lightalm` | `postgres`/`postgres` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | (바꿀 필요 없음 — 프론트는 그대로 localhost로 접속) |
 
 ```yaml
 services:
@@ -72,12 +81,15 @@ services:
   backend:
     build: ./backend
     environment:
-      DB_HOST: ondalprincess.synology.me
-      DB_PORT: 55432
-      DB_NAME: ALM_Project
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      CORS_ALLOWED_ORIGINS: https://alm.ondalprincess.synology.me,http://localhost:5173
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: lightalm
+      DB_USER: lightalm
+      DB_PASSWORD: lightalm
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
 
@@ -120,7 +132,7 @@ server {
 
 ## 부록 C. `docker-compose.test.yml` — 실제로는 채택하지 않음
 
-최초 설계는 사내 테스트 서버 전용 compose 파일을 별도로 두는 안이었으나, 실제로는 **부록 B의 단일 `docker-compose.yml`이 로컬/테스트 서버를 겸한다**(환경변수 값만 바뀔 뿐 파일 자체는 하나). 이 부록은 "다른 설계를 고려했었다"는 기록으로만 남겨두고, 새로 구현할 때는 부록 B를 기준으로 삼는다.
+최초 설계는 사내 테스트 서버 전용 compose 파일을 별도로 두는 안이었으나, 실제로는 채택하지 않았다. **운영 배포는 compose 파일 자체를 아예 쓰지 않고 Jenkinsfile이 담당한다(부록 E)** — 부록 B의 `docker-compose.yml`은 로컬 개발 전용으로 하나만 유지한다. 이 부록은 "다른 설계를 고려했었다"는 기록으로만 남겨둔다.
 
 ## 부록 D. Git 원격 저장소 — 현재 정책 (2026-08-08 갱신)
 

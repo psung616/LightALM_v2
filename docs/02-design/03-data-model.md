@@ -1,4 +1,5 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: architect | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 3. 데이터 모델 (엔티티 & DB 테이블)
 

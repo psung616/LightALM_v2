@@ -1,4 +1,5 @@
-> 상위 문서: [SPEC.md](SPEC.md)
+> Owner: orchestrator · 실행은 developer | Status: current | Last-reviewed: 2026-08-08
+> 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 8. 단계별 개발 순서 (Claude 구현 지침)
 
