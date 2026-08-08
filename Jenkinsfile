@@ -3,7 +3,13 @@ pipeline {
 
     environment {
         NETWORK = 'lightalm-net'
-        PGVOLUME = 'lightalm-pgdata'
+        // 자체 컨테이너 대신 Synology에 이미 떠있는 Postgres의 ALM_Project DB를 사용
+        // (기존 PLM 앱이 쓰던 것과 동일한 인스턴스, KPI 집계 등 외부 도구가 이 DB를 바라봄)
+        DB_HOST = 'ondalprincess.synology.me'
+        DB_PORT = '55432'
+        DB_NAME = 'ALM_Project'
+        DB_USER = 'postgres'
+        DB_PASSWORD = 'postgres'
     }
 
     stages {
@@ -29,31 +35,16 @@ pipeline {
                 sh 'docker rm factorysolution-alm || true'
 
                 // 이전 LightALM 배포 컨테이너 정리 (재배포 시)
-                sh 'docker rm -f lightalm-frontend lightalm-backend lightalm-postgres || true'
+                sh 'docker rm -f lightalm-frontend lightalm-backend || true'
 
                 sh "docker network create ${NETWORK} || true"
-                sh "docker volume create ${PGVOLUME} || true"
 
-                // postgres, backend는 전용 네트워크 안에서만 통하는 별칭(postgres/backend)을 부여
+                // backend는 전용 네트워크 안에서만 통하는 별칭(backend)을 부여
                 // -> 다른 팀 컨테이너와 이름이 겹쳐도 이 네트워크 밖에는 영향 없음, nginx.conf의 proxy_pass http://backend:8080 과 매칭
                 sh """
-                    docker run -d --name lightalm-postgres --network ${NETWORK} --network-alias postgres \
-                        -e POSTGRES_DB=lightalm -e POSTGRES_USER=lightalm -e POSTGRES_PASSWORD=lightalm \
-                        -v ${PGVOLUME}:/var/lib/postgresql/data \
-                        postgres:15
-                """
-
-                sh '''
-                    for i in $(seq 1 30); do
-                        docker exec lightalm-postgres pg_isready -U lightalm -d lightalm && break
-                        sleep 2
-                    done
-                '''
-
-                sh """
                     docker run -d --name lightalm-backend --network ${NETWORK} --network-alias backend \
-                        -e DB_HOST=postgres -e DB_PORT=5432 -e DB_NAME=lightalm \
-                        -e DB_USER=lightalm -e DB_PASSWORD=lightalm \
+                        -e DB_HOST=${DB_HOST} -e DB_PORT=${DB_PORT} -e DB_NAME=${DB_NAME} \
+                        -e DB_USER=${DB_USER} -e DB_PASSWORD=${DB_PASSWORD} \
                         lightalm-backend:latest
                 """
 
