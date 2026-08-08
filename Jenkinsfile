@@ -13,10 +13,22 @@ pipeline {
             }
         }
 
+        stage('Resolve Compose CLI') {
+            steps {
+                script {
+                    // 에이전트에 compose v2 플러그인이 없을 수 있어 docker-compose(v1)로 폴백
+                    env.COMPOSE = sh(
+                        script: 'docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose"',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
         stage('Build') {
             steps {
                 // docker-compose.yml에 정의된 postgres/backend/frontend 이미지 빌드
-                sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml build'
+                sh "${env.COMPOSE} -f docker-compose.yml -f docker-compose.prod.yml build"
             }
         }
 
@@ -26,7 +38,7 @@ pipeline {
                 sh 'docker stop factorysolution-alm || true'
                 sh 'docker rm factorysolution-alm || true'
                 // 신규 스택 기동: frontend가 :8888로 노출되어 기존 리버스 프록시 경로를 그대로 사용
-                sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d'
+                sh "${env.COMPOSE} -f docker-compose.yml -f docker-compose.prod.yml up -d"
             }
         }
     }
