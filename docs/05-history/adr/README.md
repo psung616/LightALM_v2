@@ -11,7 +11,7 @@
 | [ADR-005](ADR-005-synology-remote-운영배포트리거.md) | synology remote 추가 | **Accepted (현재 유효)** | push 시 Jenkins 자동 운영 배포 트리거 (2026-08-08) |
 | [ADR-006](ADR-006-Jenkinsfile-기반-운영배포-확정.md) | Jenkinsfile 기반 운영 배포 확정 | **Accepted (현재 유효)** | docker-compose 아님. 02-architecture.md §2.4의 낡은 "미완료" 경고 해소 |
 | [ADR-007](ADR-007-Testcontainers-IT분리.md) | Testcontainers IT 분리 | Accepted | `*IT.java` + failsafe로 통합 테스트 분리 |
-| ADR-008 | ~~v3 확장 — 업계 ALM 기능 참고~~ | **결번 (파일 유실)** | 01-scope.md §1.2 v3 항목(Phase 16~19)을 결정한 근거였으나 문서 인계 과정에서 파일이 유실됐다. 다음 ADR은 008을 재사용하지 말고 **009**부터 번호를 잇는다. v3 착수 전 이 결정을 다시 ADR로 남길 것 |
+| [ADR-008](ADR-008-v3-경쟁ALM툴-참고-스코프확장.md) | v3 확장 — 업계 ALM 기능 참고 | **Accepted (설계 완료, 구현 전)** | 업계 상용 ALM 툴에서 흔한 기능 카테고리 참고, 저작권은 개념 수준으로 한정 (2026-08-08, 1회 유실 후 재작성) |
 
 ## ADR 작성 규칙
 - 파일명: `ADR-{번호}-{짧은-제목}.md`

@@ -111,7 +111,7 @@
 
 ---
 
-> Phase 16~19는 v3 확장(01-scope.md §1.2 v3 항목, 2026-08-08)이며 **아직 구현되지 않았다.** 착수 전 02-competitive-reference.md(참고 배경/저작권 준수 원칙)를 먼저 확인할 것. architect 서브에이전트가 설계를 소유하고, developer 서브에이전트가 구현하며, qa-tester 서브에이전트가 검증한다(ROLES.md 참고). ⚠️ 이 v3 확장 결정 자체를 기록한 ADR-008은 문서 인계 과정에서 유실되어 존재하지 않는다 — 착수 전에 다시 작성할 것(또는 architect에게 요청).
+> Phase 16~19는 v3 확장(01-scope.md §1.2 v3 항목, 2026-08-08)이며 **아직 구현되지 않았다.** 착수 전 02-competitive-reference.md(참고 배경/저작권 준수 원칙)와 ADR-008을 먼저 확인할 것. architect 서브에이전트가 설계를 소유하고, developer 서브에이전트가 구현하며, qa-tester 서브에이전트가 검증한다(ROLES.md 참고).
 
 ### Phase 16 — 리뷰 사이클 & 베이스라인
 1. `review_cycles`/`review_participants` 마이그레이션 + 엔티티 작성(03-data-model.md §3.18~3.19)
