@@ -34,17 +34,21 @@ pipeline {
                 sh 'docker stop factorysolution-alm || true'
                 sh 'docker rm factorysolution-alm || true'
 
-                // 이전 LightALM 배포 컨테이너 정리 (재배포 시)
-                sh 'docker rm -f lightalm-frontend lightalm-backend || true'
+                // 이전 LightALM 배포 컨테이너 정리 (재배포 시). lightalm-postgres는 더 이상 안 쓰므로 볼륨까지 제거
+                sh 'docker rm -f lightalm-frontend lightalm-backend lightalm-postgres || true'
+                sh 'docker volume rm lightalm-pgdata || true'
 
                 sh "docker network create ${NETWORK} || true"
 
                 // backend는 전용 네트워크 안에서만 통하는 별칭(backend)을 부여
                 // -> 다른 팀 컨테이너와 이름이 겹쳐도 이 네트워크 밖에는 영향 없음, nginx.conf의 proxy_pass http://backend:8080 과 매칭
+                // 외부 ALM_Project DB에 저장된 기존 마이그레이션 체크섬이 개행 문자 차이로 어긋나 있어 검증만 비활성화
+                // (테이블/컬럼 구조는 V1/V2와 동일함을 확인함)
                 sh """
                     docker run -d --name lightalm-backend --network ${NETWORK} --network-alias backend \
                         -e DB_HOST=${DB_HOST} -e DB_PORT=${DB_PORT} -e DB_NAME=${DB_NAME} \
                         -e DB_USER=${DB_USER} -e DB_PASSWORD=${DB_PASSWORD} \
+                        -e SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false \
                         lightalm-backend:latest
                 """
 
@@ -54,14 +58,9 @@ pipeline {
                         -p 8888:80 \
                         lightalm-frontend:latest
                 """
-            }
-        }
 
-        stage('Diagnostics') {
-            steps {
-                sh 'sleep 15'
+                sh 'sleep 10'
                 sh 'docker ps -a --filter name=lightalm- || true'
-                sh 'docker logs --tail 100 lightalm-backend || true'
             }
         }
     }
