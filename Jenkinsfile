@@ -10,6 +10,7 @@ pipeline {
         DB_NAME = 'ALM_Project'
         DB_USER = 'postgres'
         DB_PASSWORD = 'postgres'
+        CORS_ALLOWED_ORIGINS = 'https://alm.ondalprincess.synology.me'
     }
 
     stages {
@@ -49,6 +50,7 @@ pipeline {
                         -e DB_HOST=${DB_HOST} -e DB_PORT=${DB_PORT} -e DB_NAME=${DB_NAME} \
                         -e DB_USER=${DB_USER} -e DB_PASSWORD=${DB_PASSWORD} \
                         -e SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false \
+                        -e CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS} \
                         lightalm-backend:latest
                 """
 
