@@ -56,5 +56,13 @@ pipeline {
                 """
             }
         }
+
+        stage('Diagnostics') {
+            steps {
+                sh 'sleep 15'
+                sh 'docker ps -a --filter name=lightalm- || true'
+                sh 'docker logs --tail 100 lightalm-backend || true'
+            }
+        }
     }
 }
