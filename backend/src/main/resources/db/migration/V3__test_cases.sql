@@ -59,11 +59,15 @@ CREATE TABLE test_run_results (
 CREATE INDEX idx_test_run_results_test_run_id ON test_run_results(test_run_id);
 
 -- v2 확장: traceability_links/comments가 TEST_CASE를 소스/타겟으로 허용하도록 CHECK 제약 확장
-ALTER TABLE traceability_links DROP CONSTRAINT chk_traceability_links_source_type;
+-- IF EXISTS + 두 이름 모두 시도: V1이 명시적 이름 없이 적용된 DB(Postgres 자동 생성 이름)도 대응
+ALTER TABLE traceability_links DROP CONSTRAINT IF EXISTS chk_traceability_links_source_type;
+ALTER TABLE traceability_links DROP CONSTRAINT IF EXISTS traceability_links_source_type_check;
 ALTER TABLE traceability_links ADD CONSTRAINT chk_traceability_links_source_type CHECK (source_type IN ('REQUIREMENT','ISSUE','TEST_CASE'));
 
-ALTER TABLE traceability_links DROP CONSTRAINT chk_traceability_links_target_type;
+ALTER TABLE traceability_links DROP CONSTRAINT IF EXISTS chk_traceability_links_target_type;
+ALTER TABLE traceability_links DROP CONSTRAINT IF EXISTS traceability_links_target_type_check;
 ALTER TABLE traceability_links ADD CONSTRAINT chk_traceability_links_target_type CHECK (target_type IN ('REQUIREMENT','ISSUE','TEST_CASE'));
 
-ALTER TABLE comments DROP CONSTRAINT chk_comments_target_type;
+ALTER TABLE comments DROP CONSTRAINT IF EXISTS chk_comments_target_type;
+ALTER TABLE comments DROP CONSTRAINT IF EXISTS comments_target_type_check;
 ALTER TABLE comments ADD CONSTRAINT chk_comments_target_type CHECK (target_type IN ('REQUIREMENT','ISSUE','TEST_CASE'));
