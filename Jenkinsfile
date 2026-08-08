@@ -61,9 +61,9 @@ pipeline {
                         lightalm-frontend:latest
                 """
 
-                sh 'sleep 30'
+                // 배포 확인용: 컨테이너가 정상 기동됐는지만 간단히 표시 (실패 시 docker logs lightalm-backend로 확인)
+                sh 'sleep 15'
                 sh 'docker ps -a --filter name=lightalm- || true'
-                sh 'docker logs --tail 300 lightalm-backend || true'
             }
         }
     }
