@@ -31,6 +31,7 @@
 |---|---|
 | [`ROLES.md`](ROLES.md) | 역할 기반 작업 분담 정의 — 요구사항분석가/아키텍트/개발자/QA·보안/DevOps의 소유 문서, 산출물, 핸드오프 조건 |
 | [`CURRENT-STATE.md`](CURRENT-STATE.md) | 지금 이 순간 유효한 사실 요약(배포 URL, DB 접속정보, Git remote, 완료된 Phase) — 개별 문서 본문과 상충하면 이 문서가 우선 |
+| [`GLOSSARY.md`](GLOSSARY.md) | 용어 사전 — 표에 없는 동의어 사용 금지 (오케스트레이터 소유) |
 
 ### 스펙 문서
 | 파일 | 내용 |
@@ -46,12 +47,15 @@
 | [`08-dev-phases.md`](../03-process/08-dev-phases.md) | §8 단계별 개발 순서(Phase 0~11 완료, Phase 12~15 신규 미구현) |
 | [`09-quality-testing.md`](../03-process/09-quality-testing.md) | §9 코딩 컨벤션, §10 테스트 전략 |
 | [`10-deployment.md`](../04-operations/10-deployment.md) | §11 실행/배포, 부록 A~D(application.yml, docker-compose.yml, Git 원격 저장소) |
+| [`11-structure-migration-plan.md`](../03-process/11-structure-migration-plan.md) | 계층형 → 기능별 패키지 구조 마이그레이션 계획 (아키텍트 소유) |
 
 ### 그 외 참고 자료
 | 위치 | 내용 |
 |---|---|
 | [`05-history/adr/`](../05-history/adr/) | Architecture Decision Record — "이전엔 이랬으나 실제로는 이렇게 바뀌었다" 류의 결정 이력을 본문에서 분리해 여기에 기록한다. 새 결정을 내릴 때마다 번호를 이어서 추가한다 |
 | [`02-design/design-tokens/linear-style-tokens.md`](../02-design/design-tokens/linear-style-tokens.md) | 프론트엔드 디자인 토큰 참고 자료(SPEC 문서 체계에는 속하지 않음) |
+| [`03-process/conventions/01-engineering-principles.md`](../03-process/conventions/01-engineering-principles.md) | 엔지니어링 원칙 컨벤션 (QA·보안 소유) |
+| [`03-process/conventions/02-naming-spring-react.md`](../03-process/conventions/02-naming-spring-react.md) | Spring/React 명명 규칙 (QA·보안 소유) |
 
 ---
 

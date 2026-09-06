@@ -18,6 +18,9 @@
 ```
 
 ### 2.2 리포지토리 구조
+
+> ⚠️ 패키지 구조 관련 서술은 ADR-010 이후 재검토 예정. Phase 16부터 신규 기능은 기능별 패키지 구조(`com.lightalm.{기능}/api|domain|repository|service`)를 따르며, 아래 트리는 기존 Phase 0~15 코드(계층형: domain/repository/service/web/dto)에만 적용된다. 상세는 `11-structure-migration-plan.md` 참고.
+
 모노레포로 구성하며 최상위에 `backend/`, `frontend/` 두 디렉터리를 둔다.
 
 ```

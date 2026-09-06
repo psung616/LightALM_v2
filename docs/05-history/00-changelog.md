@@ -1,7 +1,17 @@
-> Owner: orchestrator | Status: current | Last-reviewed: 2026-08-08
+> Owner: orchestrator | Status: current | Last-reviewed: 2026-09-06
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 변경 이력
+
+### 2026-09-06 — 신규 규약 문서 4종 등록 및 실제 코드 대조 정정
+- **신규 문서 4개 추가**: `GLOSSARY.md`(용어 사전, 오케스트레이터 소유), `03-process/11-structure-migration-plan.md`(계층형→기능별 패키지 마이그레이션 계획, architect 소유), `03-process/conventions/01-engineering-principles.md`·`02-naming-spring-react.md`(엔지니어링/명명 규약, qa-tester 소유). ROLES.md §1과 SPEC.md 문서 구성 표에 등록했다.
+- **패키지 구조 서술에 경고 추가**: `09-quality-testing.md` §9, `02-architecture.md` §2.2에 "Phase 16부터 신규 기능은 기능별 패키지 구조를 따르고, 기존 계층형 서술은 Phase 0~15 코드에만 적용된다"는 경고 문단을 추가했다(본문 자체는 그대로 둠).
+- **신규 문서 4종을 실제 코드와 대조해 정정**(문서만 docs/ 기존 설계 문서를 보고 작성돼 실제와 어긋난 부분이 있었음, fork 서브에이전트로 검증 후 반영):
+  - `GLOSSARY.md` §3: `TargetType`(`REQUIREMENT`/`ISSUE`/`TEST_CASE` 3개)과 `AuditTargetType`(`audit_logs` 전용, 7개 값)이 서로 다른 enum인데 한 행으로 합쳐져 있던 오류를 분리. §2 "9개 테이블이 동일 개념 공유" 서술을 3그룹 분류로 정정하고, 검증 로직 중복이 ADR-010(`PolymorphicTargetValidator`)으로 이미 해결됐음을 반영.
+  - `11-structure-migration-plan.md` §3.1: 실존하지 않는 클래스명(`GitHubService`/`JenkinsService`/`AuditService`) 및 "크기"를 근거로 한 서비스 분해 제안을 삭제(실제 서비스 클래스는 전부 400줄 미만 적정 범위). `ProjectService`→`ProjectKeySequenceAllocator` 분리(근거: 동시성 테스트 격리)와 Response DTO Summary/Detail 분리(근거: CRP 위반) 2건만 남김. §3.5의 Flyway 예시 번호를 V8(이미 `V8__widen_project_key.sql`로 사용 중)과 겹치지 않도록 V9~V11로 조정.
+  - `02-naming-spring-react.md` §1.2/§1.3/§3.1: `Requirement`→`FunctionalRequirement`/`NonFunctionalRequirement` 분리 예시가 실제 스키마(단일 테이블 + `type` 컬럼)와 어긋나 제거하고, 실존 클래스(`ProjectKeySequenceAllocator`, `PolymorphicTargetValidator`) 및 `RequirementResponse`(목록/상세 겸용) → `RequirementSummaryResponse`/`RequirementDetailResponse` 예시로 교체.
+  - 깨진 경로 참조 2건 수정: `02-naming-spring-react.md`의 `docs/glossary.md` → `docs/00-meta/GLOSSARY.md`, `01-engineering-principles.md`의 `docs/adr/0001-baseline.md` → `docs/05-history/adr/ADR-{번호}-{제목}.md` 형식.
+  - 추가로 발견했으나 이번에는 수정하지 않은 유사 잔재(§6/§9의 추가 `FunctionalRequirement` 예시, §4.3의 `docs/adr/NNNN-` 형식, 헥사고날 포트/어댑터 구조와 실제 Phase 16 구조의 불일치)는 별도 보고만 하고 그대로 남겨뒀다.
 
 ### 2026-08-08 (2) — v3 스코프 확장
 - **업계 상용 ALM 툴에서 흔한 기능 카테고리를 참고하여 4개 영역 추가**(01-scope.md §1.2 v3 항목 참고): 리뷰 사이클+베이스라인, 위험 관리, 요구사항 문서 뷰+변형 관리, 대시보드 위젯+리포트 내보내기. 데이터 모델(03-data-model.md §3.18~3.24), API(04-api.md §4.17~4.21), 화면(05-frontend.md §5.11~5.15), 개발 단계(08-dev-phases.md Phase 16~19)에 상세 설계 추가. **아직 구현되지 않았다** — Phase 0~15까지만 완료된 상태다.

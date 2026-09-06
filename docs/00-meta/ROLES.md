@@ -9,7 +9,7 @@ Light ALM 프로젝트를 "여러 역할을 가진 팀"이 진행하는 것처�
 
 ### 오케스트레이터 (Orchestrator, 메인 세션)
 - **책임**: 전체 작업 조율, 어떤 요청을 어느 역할에 위임할지 판단, Phase 진행 관리, 역할 간 충돌 시 최종 판단
-- **소유 문서**: SPEC.md, ROLES.md, CURRENT-STATE.md, 00-changelog.md
+- **소유 문서**: SPEC.md, ROLES.md, CURRENT-STATE.md, 00-changelog.md, GLOSSARY.md
 - **하지 않는 일**: 직접 스키마를 설계하거나 코드를 대량으로 작성하지 않는다 — 해당 성격의 작업은 위임한다
 
 ### 요구사항 분석가 (requirements-analyst) — 전담 에이전트 미생성
@@ -20,7 +20,7 @@ Light ALM 프로젝트를 "여러 역할을 가진 팀"이 진행하는 것처�
 
 ### 아키텍트 (architect) — `.claude/agents/architect.md`
 - **책임**: 시스템 구조, 데이터 모델, API 설계, 화면 라우트 설계, 구조적 결정 기록(ADR)
-- **소유 문서**: 02-architecture.md, 03-data-model.md, 04-api.md, 05-frontend.md, 06-auth.md(설계), 07-integrations.md(설계), 05-history/adr/
+- **소유 문서**: 02-architecture.md, 03-data-model.md, 04-api.md, 05-frontend.md, 06-auth.md(설계), 07-integrations.md(설계), 05-history/adr/, 11-structure-migration-plan.md
 - **산출물**: 설계 문서 갱신, ADR
 - **원칙**: 구조를 바꾸는 결정을 내릴 때는 반드시 먼저 ADR을 작성한다. 기존 V1~V7 Flyway 마이그레이션 파일은 수정하지 않는다(ADR-002, ADR-006 참고)
 - **다음 역할로 넘기는 조건**: 설계가 확정되면 developer에게 구현을 위임
@@ -34,7 +34,7 @@ Light ALM 프로젝트를 "여러 역할을 가진 팀"이 진행하는 것처�
 
 ### QA · 보안 리뷰어 (qa-tester) — `.claude/agents/qa-tester.md`
 - **책임**: 09-quality-testing.md 기준 테스트 작성/실행, 06-auth.md 기준 인증/인가 로직 검증, 알려진 리스크(CURRENT-STATE.md §6) 점검
-- **소유 문서**: 09-quality-testing.md, 06-auth.md(검증 관점)
+- **소유 문서**: 09-quality-testing.md, 06-auth.md(검증 관점), 03-process/conventions/
 - **산출물**: 테스트 결과, 발견된 이슈 목록
 - **원칙**: 통과 기준을 낮추지 않는다. 실패하는 테스트를 스킵 처리로 우회하지 않는다
 - **다음 역할로 넘기는 조건**: 통과하면 devops에게 배포를 요청. 실패하면 developer에게 반려

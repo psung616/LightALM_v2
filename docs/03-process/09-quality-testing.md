@@ -2,6 +2,9 @@
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 9. 코딩 컨벤션 및 품질 기준
+
+> ⚠️ 패키지 구조 관련 서술은 ADR-010 이후 재검토 예정. Phase 16부터 신규 기능은 기능별 패키지 구조(`com.lightalm.{기능}/api|domain|repository|service`)를 따르며, 아래 계층형 서술은 기존 Phase 0~15 코드에만 적용된다. 상세는 `11-structure-migration-plan.md` 참고.
+
 - 패키지 구조는 02-architecture.md §2.2를 따른다 (계층형: domain/repository/service/web/dto)
 - 컨트롤러는 얇게 유지하고, 비즈니스 로직/권한 검사는 서비스 레이어에 위치시킨다
 - 모든 API는 요청 DTO에 Bean Validation 어노테이션(`@NotBlank`, `@Size` 등) 적용
