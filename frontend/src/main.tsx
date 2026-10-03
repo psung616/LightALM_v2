@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom'
 import './index.css'
 import { router } from './router'
 import { AuthProvider } from './auth/AuthContext'
+import { ClickActivityIndicator } from './components/ClickActivityIndicator'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RouterProvider router={router} />
+        <ClickActivityIndicator />
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
