@@ -33,13 +33,13 @@ export function ProjectNewPage() {
       <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-6">
         {error && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <div className="mb-4">
-          <label className="mb-1 block text-sm text-slate-600">프로젝트 키 (대문자 3~10자)</label>
+          <label className="mb-1 block text-sm text-slate-600">프로젝트 키 (대문자로 시작하는 3~20자, 숫자/언더바 가능)</label>
           <input
             type="text"
             value={projectKey}
             onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
             required
-            maxLength={10}
+            maxLength={20}
             placeholder="LALM"
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
           />

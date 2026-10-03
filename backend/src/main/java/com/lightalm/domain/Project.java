@@ -33,7 +33,7 @@ public class Project {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "project_key", nullable = false, unique = true, length = 10)
+    @Column(name = "project_key", nullable = false, unique = true, length = 20)
     private String projectKey;
 
     @Column(nullable = false, length = 150)
