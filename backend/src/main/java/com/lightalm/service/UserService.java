@@ -9,6 +9,7 @@ import com.lightalm.dto.UpdateUserRequest;
 import com.lightalm.dto.UserResponse;
 import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.exception.ValidationException;
+import com.lightalm.license.service.LicenseEnforcementService;
 import com.lightalm.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LicenseEnforcementService licenseEnforcementService;
 
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> list(Pageable pageable) {
@@ -41,6 +43,8 @@ public class UserService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ValidationException("이미 사용 중인 email입니다: " + request.getEmail());
         }
+        licenseEnforcementService.requireActiveLicense();
+        licenseEnforcementService.requireSeatAvailable();
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))

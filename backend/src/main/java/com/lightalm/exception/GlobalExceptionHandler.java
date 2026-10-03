@@ -1,6 +1,9 @@
 package com.lightalm.exception;
 
 import com.lightalm.dto.ErrorResponse;
+import com.lightalm.license.domain.LicenseFileRejectedException;
+import com.lightalm.license.domain.LicenseInvalidException;
+import com.lightalm.license.domain.LicenseSeatLimitExceededException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -34,6 +37,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExternalApiException.class)
     public ResponseEntity<ErrorResponse> handleExternalApi(ExternalApiException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_GATEWAY, ex.getErrorCode(), ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(LicenseInvalidException.class)
+    public ResponseEntity<ErrorResponse> handleLicenseInvalid(LicenseInvalidException ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, "LICENSE_INVALID", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(LicenseSeatLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLicenseSeatLimitExceeded(LicenseSeatLimitExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, "LICENSE_SEAT_LIMIT_EXCEEDED", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(LicenseFileRejectedException.class)
+    public ResponseEntity<ErrorResponse> handleLicenseFileRejected(LicenseFileRejectedException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

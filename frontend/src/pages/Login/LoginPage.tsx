@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const signupCompleted = Boolean((location.state as { signupCompleted?: boolean } | null)?.signupCompleted);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,11 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
       <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="mb-6 text-xl font-semibold text-slate-900">Light ALM 로그인</h1>
+        {signupCompleted && (
+          <p className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+            가입이 완료되었습니다. 로그인해주세요.
+          </p>
+        )}
         {error && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <div className="mb-4">
           <label className="mb-1 block text-sm text-slate-600">아이디</label>
@@ -57,6 +64,12 @@ export function LoginPage() {
         >
           {submitting ? '로그인 중...' : '로그인'}
         </button>
+        <p className="mt-4 text-center text-sm text-slate-500">
+          계정이 없으신가요?{' '}
+          <Link to="/signup" className="text-primary hover:underline">
+            회원가입
+          </Link>
+        </p>
       </form>
     </div>
   );

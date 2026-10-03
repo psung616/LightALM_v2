@@ -7,5 +7,6 @@ public enum AuditTargetType {
     RELEASE,
     PROJECT,
     USER,
-    TRACEABILITY_LINK
+    TRACEABILITY_LINK,
+    LICENSE
 }

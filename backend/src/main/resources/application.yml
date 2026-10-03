@@ -16,3 +16,5 @@ server:
 light-alm:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  license:
+    signing-secret: ${LICENSE_SIGNING_SECRET:light-alm-dev-only-insecure-secret-change-in-production}

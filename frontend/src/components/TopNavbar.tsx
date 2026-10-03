@@ -19,6 +19,11 @@ export function TopNavbar() {
               사용자 관리
             </Link>
           )}
+          {user?.systemRole === 'ADMIN' && (
+            <Link to="/admin/licenses" className="text-sm text-slate-600 hover:text-slate-900">
+              라이센스 관리
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-600">{user?.fullName}</span>

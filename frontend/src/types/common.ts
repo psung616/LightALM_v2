@@ -41,3 +41,6 @@ export type ReleaseStatus = 'PLANNED' | 'IN_PROGRESS' | 'RELEASED' | 'ARCHIVED';
 
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export type ApprovalDecision = 'APPROVE' | 'REJECT';
+
+export type LicenseType = 'TRIAL' | 'STANDARD' | 'ENTERPRISE';
+export type LicenseStatus = 'ACTIVE' | 'SUPERSEDED' | 'REVOKED';

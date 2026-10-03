@@ -4,6 +4,7 @@ import { ProjectLayout } from './components/ProjectLayout';
 import { ProtectedRoute, AdminRoute } from './auth/ProtectedRoute';
 import { GuestOnlyRoute } from './auth/GuestOnlyRoute';
 import { LoginPage } from './pages/Login/LoginPage';
+import { SignupPage } from './pages/Signup/SignupPage';
 import { ProjectListPage } from './pages/ProjectList/ProjectListPage';
 import { ProjectNewPage } from './pages/ProjectNew/ProjectNewPage';
 import { ProjectDashboardPage } from './pages/ProjectDashboard/ProjectDashboardPage';
@@ -14,6 +15,7 @@ import { IssueDetailPage } from './pages/IssueDetail/IssueDetailPage';
 import { TraceabilityPage } from './pages/Traceability/TraceabilityPage';
 import { ProjectSettingsPage } from './pages/ProjectSettings/ProjectSettingsPage';
 import { AdminUsersPage } from './pages/AdminUsers/AdminUsersPage';
+import { AdminLicensesPage } from './pages/AdminLicenses/AdminLicensesPage';
 import { MyTasksPage } from './pages/MyTasks/MyTasksPage';
 import { TestCaseListPage } from './pages/TestCaseList/TestCaseListPage';
 import { TestCaseDetailPage } from './pages/TestCaseDetail/TestCaseDetailPage';
@@ -26,7 +28,10 @@ import { ApprovalInboxPage } from './pages/ApprovalInbox/ApprovalInboxPage';
 export const router = createBrowserRouter([
   {
     element: <GuestOnlyRoute />,
-    children: [{ path: '/login', element: <LoginPage /> }],
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/signup', element: <SignupPage /> },
+    ],
   },
   {
     element: <ProtectedRoute />,
@@ -39,7 +44,10 @@ export const router = createBrowserRouter([
           { path: '/my-tasks', element: <MyTasksPage /> },
           {
             element: <AdminRoute />,
-            children: [{ path: '/admin/users', element: <AdminUsersPage /> }],
+            children: [
+              { path: '/admin/users', element: <AdminUsersPage /> },
+              { path: '/admin/licenses', element: <AdminLicensesPage /> },
+            ],
           },
         ],
       },
