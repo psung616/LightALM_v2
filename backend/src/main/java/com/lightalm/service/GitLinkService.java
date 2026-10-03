@@ -21,6 +21,7 @@ import com.lightalm.repository.GitLinkRepository;
 import com.lightalm.repository.IssueRepository;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.support.PolymorphicTargetValidator;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -44,11 +45,12 @@ public class GitLinkService {
     private final GithubApiClient githubApiClient;
     private final GithubWebhookSignatureVerifier signatureVerifier;
     private final ObjectMapper objectMapper;
+    private final PolymorphicTargetValidator polymorphicTargetValidator;
 
     @Transactional(readOnly = true)
     public List<GitLinkResponse> list(Long projectId, TargetType targetType, Long targetId, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.VIEWER);
-        verifyTargetExists(projectId, targetType, targetId);
+        polymorphicTargetValidator.ensureExists(projectId, targetType, targetId);
         return gitLinkRepository.findByTargetTypeAndTargetIdOrderByLinkedAtDesc(targetType, targetId).stream()
                 .map(GitLinkResponse::from)
                 .toList();
@@ -58,7 +60,7 @@ public class GitLinkService {
     public GitLinkResponse createManual(Long projectId, TargetType targetType, Long targetId, CreateGitLinkRequest request,
                                          UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
-        verifyTargetExists(projectId, targetType, targetId);
+        polymorphicTargetValidator.ensureExists(projectId, targetType, targetId);
         Project project = projectService.getEntity(projectId);
         if (project.getGithubRepoOwner() == null || project.getGithubRepoName() == null) {
             throw new ValidationException("프로젝트에 GitHub 연동 정보(repoOwner/repoName)가 설정되어 있지 않습니다.");
@@ -217,22 +219,6 @@ public class GitLinkService {
             return objectMapper.readTree(new String(rawBody, StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new ValidationException("Webhook payload를 파싱할 수 없습니다.");
-        }
-    }
-
-    private void verifyTargetExists(Long projectId, TargetType targetType, Long targetId) {
-        if (targetType == TargetType.REQUIREMENT) {
-            var requirement = requirementRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId));
-            if (!requirement.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId);
-            }
-        } else {
-            var issue = issueRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId));
-            if (!issue.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId);
-            }
         }
     }
 }

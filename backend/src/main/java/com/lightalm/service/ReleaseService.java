@@ -1,11 +1,9 @@
 package com.lightalm.service;
 
-import com.lightalm.domain.Issue;
 import com.lightalm.domain.Project;
 import com.lightalm.domain.ProjectRole;
 import com.lightalm.domain.Release;
 import com.lightalm.domain.ReleaseItem;
-import com.lightalm.domain.Requirement;
 import com.lightalm.domain.TargetType;
 import com.lightalm.domain.User;
 import com.lightalm.dto.AddReleaseItemRequest;
@@ -24,6 +22,7 @@ import com.lightalm.repository.ReleaseRepository;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.support.PolymorphicTargetValidator;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +41,7 @@ public class ReleaseService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
+    private final PolymorphicTargetValidator polymorphicTargetValidator;
 
     @Transactional(readOnly = true)
     public PageResponse<ReleaseResponse> list(Long projectId, UserPrincipal principal, Pageable pageable) {
@@ -104,7 +104,7 @@ public class ReleaseService {
         if (targetType != TargetType.REQUIREMENT && targetType != TargetType.ISSUE) {
             throw new ValidationException("릴리스에는 REQUIREMENT 또는 ISSUE만 추가할 수 있습니다.");
         }
-        validateTargetExists(projectId, targetType, request.getTargetId());
+        polymorphicTargetValidator.ensureExists(projectId, targetType, request.getTargetId());
         if (releaseItemRepository.existsByReleaseIdAndTargetTypeAndTargetId(releaseId, targetType, request.getTargetId())) {
             throw new ValidationException("이미 릴리스에 포함된 항목입니다.");
         }
@@ -169,22 +169,6 @@ public class ReleaseService {
                 .version(release.getVersion())
                 .notes(sb.toString())
                 .build();
-    }
-
-    private void validateTargetExists(Long projectId, TargetType targetType, Long targetId) {
-        if (targetType == TargetType.REQUIREMENT) {
-            Requirement requirement = requirementRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId));
-            if (!requirement.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId);
-            }
-        } else {
-            Issue issue = issueRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId));
-            if (!issue.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId);
-            }
-        }
     }
 
     /** index 0 = key, 1 = title, 2 = status (null-safe — "(삭제됨)"/null if the referenced row is gone). */

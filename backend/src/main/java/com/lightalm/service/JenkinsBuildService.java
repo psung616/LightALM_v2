@@ -7,13 +7,11 @@ import com.lightalm.domain.TargetType;
 import com.lightalm.dto.JenkinsBuildResponse;
 import com.lightalm.dto.JenkinsWebhookPayload;
 import com.lightalm.dto.TriggerBuildRequest;
-import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.exception.ValidationException;
 import com.lightalm.integration.jenkins.JenkinsApiClient;
-import com.lightalm.repository.IssueRepository;
 import com.lightalm.repository.JenkinsBuildRepository;
-import com.lightalm.repository.RequirementRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.support.PolymorphicTargetValidator;
 import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
@@ -25,16 +23,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class JenkinsBuildService {
 
     private final JenkinsBuildRepository jenkinsBuildRepository;
-    private final RequirementRepository requirementRepository;
-    private final IssueRepository issueRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
     private final JenkinsApiClient jenkinsApiClient;
+    private final PolymorphicTargetValidator polymorphicTargetValidator;
 
     @Transactional(readOnly = true)
     public List<JenkinsBuildResponse> list(Long projectId, TargetType targetType, Long targetId, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.VIEWER);
-        verifyTargetExists(projectId, targetType, targetId);
+        polymorphicTargetValidator.ensureExists(projectId, targetType, targetId);
         return jenkinsBuildRepository.findByTargetTypeAndTargetIdOrderByCreatedAtDesc(targetType, targetId).stream()
                 .map(JenkinsBuildResponse::from)
                 .toList();
@@ -43,7 +40,7 @@ public class JenkinsBuildService {
     @Transactional
     public void triggerBuild(Long projectId, TriggerBuildRequest request, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
-        verifyTargetExists(projectId, request.getTargetType(), request.getTargetId());
+        polymorphicTargetValidator.ensureExists(projectId, request.getTargetType(), request.getTargetId());
         Project project = projectService.getEntity(projectId);
         if (project.getJenkinsBaseUrl() == null || project.getJenkinsJobName() == null) {
             throw new ValidationException("프로젝트에 Jenkins 연동 정보(baseUrl/jobName)가 설정되어 있지 않습니다.");
@@ -98,21 +95,5 @@ public class JenkinsBuildService {
             }
         }
         jenkinsBuildRepository.save(build);
-    }
-
-    private void verifyTargetExists(Long projectId, TargetType targetType, Long targetId) {
-        if (targetType == TargetType.REQUIREMENT) {
-            var requirement = requirementRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId));
-            if (!requirement.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + targetId);
-            }
-        } else {
-            var issue = issueRepository.findById(targetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId));
-            if (!issue.getProject().getId().equals(projectId)) {
-                throw new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + targetId);
-            }
-        }
     }
 }

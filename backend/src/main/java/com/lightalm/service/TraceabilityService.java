@@ -20,6 +20,7 @@ import com.lightalm.repository.TraceabilityLinkRepository;
 import com.lightalm.repository.TraceabilityTreeRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.service.support.PolymorphicTargetValidator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +40,7 @@ public class TraceabilityService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
+    private final PolymorphicTargetValidator polymorphicTargetValidator;
 
     @Transactional(readOnly = true)
     public TraceabilityMatrixResponse matrix(Long projectId, UserPrincipal principal) {
@@ -132,8 +134,8 @@ public class TraceabilityService {
     public TraceabilityLinkResponse createLink(Long projectId, CreateTraceabilityLinkRequest request, UserPrincipal principal) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
 
-        validateTarget(projectId, request.getSourceType(), request.getSourceId());
-        validateTarget(projectId, request.getTargetType(), request.getTargetId());
+        polymorphicTargetValidator.ensureExists(projectId, request.getSourceType(), request.getSourceId());
+        polymorphicTargetValidator.ensureExists(projectId, request.getTargetType(), request.getTargetId());
 
         if (traceabilityLinkRepository.existsBySourceTypeAndSourceIdAndTargetTypeAndTargetIdAndLinkType(
                 request.getSourceType(), request.getSourceId(), request.getTargetType(), request.getTargetId(), request.getLinkType())) {
@@ -246,21 +248,5 @@ public class TraceabilityService {
 
     private boolean isRequirementIssuePair(TargetType a, TargetType b) {
         return (a == TargetType.REQUIREMENT && b == TargetType.ISSUE) || (a == TargetType.ISSUE && b == TargetType.REQUIREMENT);
-    }
-
-    private void validateTarget(Long projectId, TargetType type, Long id) {
-        if (type == TargetType.REQUIREMENT) {
-            Requirement requirement = requirementRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("요구사항을 찾을 수 없습니다: " + id));
-            if (!requirement.getProject().getId().equals(projectId)) {
-                throw new ValidationException("요구사항이 해당 프로젝트에 속하지 않습니다: " + id);
-            }
-        } else {
-            Issue issue = issueRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("이슈를 찾을 수 없습니다: " + id));
-            if (!issue.getProject().getId().equals(projectId)) {
-                throw new ValidationException("이슈가 해당 프로젝트에 속하지 않습니다: " + id);
-            }
-        }
     }
 }
