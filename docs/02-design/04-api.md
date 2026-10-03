@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-08-08
+> Owner: architect | Status: current | Last-reviewed: 2026-10-03
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 4. REST API 명세
@@ -67,15 +67,17 @@
 ### 4.5 요구사항 (Requirement)
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/projects/{projectId}/requirements` | 목록, 쿼리: `status,type,priority,parentId,assignedTo,keyword` | VIEWER+ |
-| POST | `/api/projects/{projectId}/requirements` | 생성 `{title,description,type,priority,parentRequirementId,assignedTo,dueDate}`(`dueDate`는 신규, 선택값) | MEMBER+ |
+| GET | `/api/projects/{projectId}/requirements` | 목록, 쿼리: `status,type,priority,parentId,assignedTo,keyword,requirementLevel,rootOnly`(`requirementLevel`=`PRD`\|`SRS`, `rootOnly`=boolean — `parent_requirement_id IS NULL`인 것만. 둘 다 신규·선택값, ADR-013, 05-frontend.md §5.22 사이드바 트리에서 사용) | VIEWER+ |
+| POST | `/api/projects/{projectId}/requirements` | 생성 `{title,description,type,priority,parentRequirementId,assignedTo,dueDate,requirementLevel}`(`dueDate`,`requirementLevel`은 선택값 — `requirementLevel` 생략 시 서버가 `'SRS'`로 저장, ADR-013) | MEMBER+ |
 | GET | `/api/projects/{projectId}/requirements/{reqId}` | 상세 | VIEWER+ |
-| PUT | `/api/projects/{projectId}/requirements/{reqId}` | 수정 | MEMBER+ |
+| PUT | `/api/projects/{projectId}/requirements/{reqId}` | 수정(`requirementLevel` 포함, ADR-013) | MEMBER+ |
 | PATCH | `/api/projects/{projectId}/requirements/{reqId}/status` | 상태 변경 `{status}` | MEMBER+ |
 | DELETE | `/api/projects/{projectId}/requirements/{reqId}` | 삭제 | PROJECT_ADMIN+ |
 | GET | `/api/projects/{projectId}/requirements/{reqId}/children` | 하위 요구사항 목록 | VIEWER+ |
 | GET | `/api/projects/{projectId}/requirements/{reqId}/links` | 이 요구사항과 연결된 이슈/요구사항 목록 | VIEWER+ |
 | GET | `/api/projects/{projectId}/requirements/{reqId}/traceability-tree` | **(신규)** 이 요구사항 기준 상위(조상) 체인 전체 + 하위(자손, 재귀) 요구사항 트리 + 트리의 각 노드에 연결된 이슈까지 한 번에 반환(05-frontend.md §5.4, 응답 예시는 §4.7 하단) | VIEWER+ |
+
+> **(ADR-013, 2026-10-03)** 사이드바 "작업 항목" 트리 패널(`WorkItemTreePanel`, 05-frontend.md §5.22)은 PRD/SRS 섹션에서 위 `requirementLevel`/`rootOnly` 쿼리와 `.../requirements/{reqId}/children`(변경 없음)을 그대로 사용하고, Defect 섹션은 §4.6의 `GET .../issues?type=BUG`를, TestCase 섹션은 §4.12의 `GET .../test-cases`를 **변경 없이** 그대로 재사용한다 — 신규 엔드포인트를 추가하지 않는다.
 
 ### 4.6 이슈 (Issue)
 | Method | Path | 설명 | 권한 |
@@ -284,3 +286,73 @@
 | GET | `/api/projects/{projectId}/audit-logs/export?format=xlsx` | 감사 로그 내보내기 | PROJECT_ADMIN+ |
 
 내보내기는 별도 저장 없이 요청 시점에 서비스 레이어가 실시간 생성해서 스트리밍 응답한다(Content-Disposition: attachment).
+
+---
+
+## v4 확장 API (2026-10-03, 03-data-model.md §3.25~3.29 참고, 아직 미구현 — ADR-011·ADR-012)
+
+### 4.22 회원가입 (Self-Signup)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/auth/signup` | 회원가입 `{username,email,fullName,password,passwordConfirm}` — `systemRole`은 항상 `USER`, `enabled`은 항상 `true`로 서버가 고정. 가입 성공해도 자동 로그인하지 않음(별도로 `/api/auth/login` 호출 필요) | 공개 |
+
+검증 규칙은 기존 `POST /api/users`(§4.3 `CreateUserRequest`)와 동일하게 맞춘다: `username`(NotBlank, max 50), `email`(NotBlank, Email, max 120), `fullName`(NotBlank, max 100), `password`(NotBlank, 8~100자), `passwordConfirm`(서비스 레이어에서 `password`와 일치 검증, 불일치 시 `400 VALIDATION_ERROR`).
+
+라이센스 연동 — 가입 직전 `LicenseEnforcementService.requireActiveLicense()`/`requireSeatAvailable()` 통과 필요(§4.23 참고):
+
+| 상황 | HTTP | error 코드 |
+|---|---|---|
+| 활성 라이센스 없음/만료 | 403 | `LICENSE_INVALID` |
+| 시트 한도 초과(`enabled=true` 사용자 수 ≥ `seat_limit`) | 403 | `LICENSE_SEAT_LIMIT_EXCEEDED` |
+
+### 4.23 라이센스 관리 (License)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| POST | `/api/admin/licenses` | 라이센스 파일 업로드(multipart, `file` 파트) → 파싱(JSON)/HMAC-SHA256 서명 검증/적용. 기존 `ACTIVE` 행을 `SUPERSEDED`로 전환 후 신규 `ACTIVE` 삽입(단일 트랜잭션) | ADMIN |
+| GET | `/api/admin/licenses/current` | 현재 활성 라이센스 상세 + 시트 사용량(`seatsUsed`,`seatsRemaining`) | ADMIN |
+| GET | `/api/admin/licenses` | 업로드 이력(페이지네이션) | ADMIN |
+| GET | `/api/public/license-status` | `{signupAllowed: boolean, reason: string\|null}` — 시트 수/라이센스 키 등 민감 정보는 내려주지 않음, `/signup` 화면에서 폼 노출 전 안내용 | 공개 |
+
+업로드 실패 응답: `400 LICENSE_SIGNATURE_INVALID`(서명 불일치, 저장하지 않음), `400 LICENSE_ALREADY_EXPIRED`(업로드 시점 기준 이미 만료된 파일), `400 LICENSE_FILE_TOO_LARGE`(16KB 초과).
+
+적용 게이트는 두 개로 분리된다(§게이트 A/B, 상세는 ADR-011 §2.3):
+- **게이트 A(라이센스 유효성)**: 활성 라이센스가 없거나 만료 — 모든 비-ADMIN 로그인(로그인 성공 처리 직후 검사, 실패 시 세션 무효화 + `403 LICENSE_INVALID`) + 모든 신규 계정 생성(가입·관리자의 `POST /api/users` 양쪽 모두)에 적용. 시스템 `ADMIN`의 로그인은 예외(복구 경로).
+- **게이트 B(시트 한도)**: `enabled=true` 사용자 수 ≥ `seat_limit` — 신규 계정 생성(가입·관리자 생성)에만 적용. 기존 로그인에는 영향 없음(라이센스를 더 작은 시트로 교체해도 이미 만들어진 계정은 계속 로그인 가능).
+
+### 4.24 프로젝트 커스텀 필드 (Custom Field)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/config/custom-fields?targetType=` | 필드 정의 목록(ACTIVE+DEPRECATED, 설정화면용) | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/custom-fields` | 필드 생성 `{targetType,fieldKey,label,dataType,enumerationSetId?,required,defaultValue}` | PROJECT_ADMIN+ |
+| PUT | `/api/projects/{projectId}/config/custom-fields/{fieldId}` | 필드 수정(`label`/`required`/`defaultValue`/`displayOrder`만 — `dataType`/`fieldKey`는 생성 후 불변) | PROJECT_ADMIN+ |
+| DELETE | `/api/projects/{projectId}/config/custom-fields/{fieldId}` | 소프트 삭제(`status=DEPRECATED`), 하드 삭제 없음 | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/custom-fields?targetType=` | 활성 필드 정의만(생성/수정 폼 렌더링용) | VIEWER+ |
+| GET | `/api/projects/{projectId}/{targetType}/{targetId}/custom-field-values` | 대상의 커스텀 필드 값 전체 조회(대상 검증은 `PolymorphicTargetValidator` 재사용) | VIEWER+ |
+| PUT | `/api/projects/{projectId}/{targetType}/{targetId}/custom-field-values` | 값 일괄 저장 `{values:[{fieldId,value}]}` | MEMBER+ |
+
+### 4.25 프로젝트 폼 레이아웃 (Form Layout)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/config/form-layouts/{targetType}` | 레이아웃 조회(섹션+필드 트리, 설정화면용) | PROJECT_ADMIN+ |
+| PUT | `/api/projects/{projectId}/config/form-layouts/{targetType}` | 레이아웃 전체 치환(섹션/필드 순서 일괄 저장) | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/form-layouts/{targetType}` | 폼 렌더링용 조회(미설정 시 표준 필드 기본 순서 반환 — 하위 호환) | VIEWER+ |
+
+### 4.26 프로젝트 열거형 (Enumeration)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/config/enumerations` | 집합 목록 | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/enumerations` | 집합 생성 `{enumKey,baseEnum?,name}` — `baseEnum`은 `PRIORITY` 또는 생략만 허용(상태값 확장은 거부, §3.28 참고) | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/enumerations/{id}/values` | 값 추가 `{valueKey,label,displayOrder}` | PROJECT_ADMIN+ |
+| PUT | `/api/projects/{projectId}/config/enumerations/{id}/values/{valueId}` | 값 수정 | PROJECT_ADMIN+ |
+| DELETE | `/api/projects/{projectId}/config/enumerations/{id}/values/{valueId}` | 소프트 삭제(`is_system_default=true`면 거부) | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/enumerations/{enumKey}/values` | 폼 렌더링용 활성 값 목록(커스텀 필드 SELECT 옵션, PRIORITY 드롭다운 등) | VIEWER+ |
+
+### 4.27 프로젝트 워크플로우 전이 규칙 (Workflow Transition Rule)
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/projects/{projectId}/config/workflow-rules?targetType=` | 규칙 목록(없으면 "자유 전이 모드"임을 함께 응답) | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/workflow-rules` | 규칙 추가 `{targetType,fromStatus,toStatus,allowedRole?}` | PROJECT_ADMIN+ |
+| DELETE | `/api/projects/{projectId}/config/workflow-rules/{ruleId}` | 규칙 삭제(전부 삭제 시 해당 target_type은 자유 전이 모드로 복귀) | PROJECT_ADMIN+ |
+| GET | `/api/projects/{projectId}/workflow-rules/{targetType}/{fromStatus}` | 특정 상태에서 전이 가능한 다음 상태 목록("상태 변경" 드롭다운 구성용) | VIEWER+ |
+
+기존 `PATCH .../requirements/{reqId}/status`·`PATCH .../issues/{issueId}/status`(§4.5·§4.6)는 변경되지 않지만, 내부적으로 `WorkflowTransitionPolicy.requireAllowedTransition(...)` 훅이 추가된다. 화이트리스트 모드가 아닌 프로젝트(규칙 미등록)는 기존과 동일하게 동작한다(하위 호환).

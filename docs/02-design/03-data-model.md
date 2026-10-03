@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-08-08
+> Owner: architect | Status: current | Last-reviewed: 2026-10-03
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 3. 데이터 모델 (엔티티 & DB 테이블)
@@ -26,7 +26,7 @@
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
 | id | BIGSERIAL | PK |
-| project_key | VARCHAR(10) | UNIQUE, NOT NULL (예: `LALM`, 대문자 3~10자) |
+| project_key | VARCHAR(20) | UNIQUE, NOT NULL (예: `LALM`, `TEAM_A_V2`. 대문자로 시작하는 대문자/숫자/언더바 3~20자, 정규식 `^[A-Z][A-Z0-9_]{2,19}$`. ADR-009로 대문자 전용 3~10자에서 완화됨) |
 | name | VARCHAR(150) | NOT NULL |
 | description | TEXT | NULL |
 | status | VARCHAR(20) | NOT NULL, CHECK IN ('ACTIVE','ARCHIVED'), DEFAULT 'ACTIVE' |
@@ -67,6 +67,7 @@ UNIQUE (project_id, user_id)
 | type | VARCHAR(20) | NOT NULL, CHECK IN ('FUNCTIONAL','NON_FUNCTIONAL','BUSINESS') |
 | priority | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL'), DEFAULT 'MEDIUM' |
 | status | VARCHAR(20) | NOT NULL, CHECK IN ('DRAFT','APPROVED','IN_PROGRESS','IMPLEMENTED','VERIFIED','REJECTED'), DEFAULT 'DRAFT' |
+| requirement_level | VARCHAR(10) | NOT NULL, CHECK IN ('PRD','SRS'), DEFAULT 'SRS' (신규 — ADR-013. `type`(성격 분류)과 다른 축으로, 문서 레벨(제품 수준 PRD vs 소프트웨어 수준 SRS)만 구분. 기존 데이터는 전부 `'SRS'`로 백필. `parent_requirement_id`와의 상하 관계는 강제하지 않음 — 사용자 판단에 맡김) |
 | parent_requirement_id | BIGINT | FK → requirements.id, ON DELETE SET NULL, NULL 허용 (상위 요구사항) |
 | created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
 | assigned_to | BIGINT | FK → users.id, ON DELETE SET NULL, NULL 허용 |
@@ -99,7 +100,7 @@ UNIQUE (project_id, user_id)
 |---|---|---|
 | id | BIGSERIAL | PK |
 | project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
-| source_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
+| source_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') (`TEST_CASE`는 ADR-013에서 추가 — 아래 참고) |
 | source_id | BIGINT | NOT NULL |
 | target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
 | target_id | BIGINT | NOT NULL |
@@ -112,6 +113,8 @@ UNIQUE (source_type, source_id, target_type, target_id, link_type) — 동일 �
 > 실제 서비스 로직에서는 `REQUIREMENT → ISSUE`(link_type='IMPLEMENTS' 또는 'TESTS') 조합만 UI에서 주로 사용하지만, 테이블 자체는 범용으로 설계한다.
 
 > **(v2 확장)** `TEST_CASE`를 `source_type`/`target_type`에 추가한 이유: 별도의 요구사항↔테스트케이스 연결 테이블을 새로 만들지 않고, 기존 `traceability_links`에 이미 정의되어 있는 `link_type='TESTS'` 값을 그대로 재사용해 `REQUIREMENT → TEST_CASE` 링크를 표현하기 위함이다(§3.11 참고).
+
+> **(ADR-013, 2026-10-03) `source_type`/`target_type` 대칭성 보강**: 이 표는 `source_type`에도 `TEST_CASE`를 CHECK 값으로 적어왔지만, 실제 `V1__init.sql`의 `chk_traceability_links_source_type` 제약은 지금까지 `('REQUIREMENT','ISSUE')`만 허용해 테스트케이스를 **출발점(source)**으로 하는 링크를 만들 수 없었다(문서와 실제 스키마 간 드리프트). ADR-013은 PRD/SRS/Defect/TestCase 네 작업 항목 유형이 "서로 자유롭게 추적성 연결"되어야 한다는 요구사항을 충족하기 위해, 신규 마이그레이션으로 `chk_traceability_links_source_type`을 `('REQUIREMENT','ISSUE','TEST_CASE')`로 넓혀 이 표의 서술과 실제 제약을 일치시킨다. 새 `TargetType` 값을 추가하는 것이 아니라 기존 세 값의 source/target 허용 범위를 대칭으로 맞추는 것뿐이므로 `PolymorphicTargetValidator`(ADR-010)는 변경되지 않는다.
 
 ### 3.7 `comments`
 | 컬럼 | 타입 | 제약 |
@@ -169,6 +172,8 @@ Project 1---N TraceabilityLink (source/target = Requirement|Issue|TestCase, 다�
 Project 1---N Comment (target = Requirement|Issue|TestCase)
 Project 1---N GitLink (target = Requirement|Issue)
 Project 1---N JenkinsBuild (target = Requirement|Issue)
+
+다형 연관(target_type/target_id) 존재/소속 검증은 Comment/GitLink/JenkinsBuild/Release/TraceabilityLink 5곳에서 공용 컴포넌트 `PolymorphicTargetValidator`(`com.lightalm.service.support`)로 통합됐다. 대상이 존재하지 않거나 다른 프로젝트 소속이면 항상 `ResourceNotFoundException`(404)으로 통일해 크로스 테넌트 존재 노출을 막는다. 상세: ADR-010.
 Project 1---N TestCase (optional FK: requirement_id)
 Project 1---N TestRun (optional FK: release_id)
 TestRun 1---N TestRunResult N---1 TestCase
@@ -412,4 +417,167 @@ Project 1---N Baseline 1---N BaselineItem (target = Requirement|Issue|TestCase, 
 Project 1---N Risk (traceability_links를 통해 Requirement|Issue와 연결, source_type/target_type에 'RISK' 추가)
 Project 1---N Variant 1---N RequirementVariant N---1 Requirement
 User 1---N DashboardWidgetConfig (optional FK: project_id)
+```
+
+---
+
+## v4 확장 (2026-10-03, 01-scope.md §1.2 v4 항목, 아직 미구현 — ADR-011·ADR-012)
+
+> 아래 §3.25~§3.29는 ADR-011(회원가입+라이센스 관리)·ADR-012(프로젝트 Configuration 영역)에서 설계가 확정된 내용을 그대로 옮긴 것이다. 두 ADR 본문의 §2.3("업로드→파싱→저장→적용" 흐름)·§A~§D(커스텀 필드/폼 레이아웃/열거형/워크플로우) 서술이 각 테이블의 1차 근거다.
+
+### 3.25 `licenses` (ADR-011)
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| license_key | VARCHAR(100) | UNIQUE, NOT NULL |
+| organization_name | VARCHAR(150) | NOT NULL |
+| license_type | VARCHAR(20) | NOT NULL, CHECK IN ('TRIAL','STANDARD','ENTERPRISE') |
+| seat_limit | INTEGER | NOT NULL, CHECK (seat_limit > 0) |
+| issued_at | TIMESTAMP | NOT NULL |
+| expires_at | TIMESTAMP | NULL 허용(무기한 라이센스) |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('ACTIVE','SUPERSEDED','REVOKED'), DEFAULT 'ACTIVE' |
+| raw_file_name | VARCHAR(255) | NOT NULL (업로드 원본 파일명, 감사용) |
+| raw_payload | TEXT | NOT NULL (업로드된 라이센스 파일 원문 전체 — 재검증/감사용. 일반 첨부파일 저장소가 아니라 이 설정 파일 하나만을 위한 컬럼, ADR-011 맥락 참고) |
+| signature_valid | BOOLEAN | NOT NULL DEFAULT true (서명 검증 실패 건은 저장하지 않으므로 사실상 항상 true — 감사 추적용 플래그) |
+| uploaded_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| uploaded_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+`ACTIVE` 상태는 항상 최대 1건만 존재해야 하므로 부분 유니크 인덱스로 강제한다.
+```sql
+CREATE UNIQUE INDEX uq_licenses_single_active ON licenses(status) WHERE status = 'ACTIVE';
+```
+
+> **`users` 테이블은 변경 없음.** `username`/`password`/`email`/`full_name`/`system_role`/`enabled`이 이미 회원가입(self-signup)에 필요한 컬럼을 모두 제공한다(§3.1 참고). 회원가입은 `systemRole`을 항상 `USER`로, `enabled`을 항상 `true`로 서버가 고정해서 저장하며 새 컬럼이 필요 없다.
+> `audit_logs.target_type`(§3.16) CHECK 제약에 `'LICENSE'`를 추가해 라이센스 업로드도 감사 로그 대상에 포함한다(기존 `chk_audit_logs_target_type` 제약을 `DROP`→재생성, ADR-011 §3.3).
+
+### 3.26 `custom_field_definitions` / `custom_field_values` (ADR-012 §A)
+프로젝트가 요구사항/이슈/테스트케이스에 붙이는 추가 속성. EAV(Entity-Attribute-Value) 패턴으로, 프로젝트마다 실제 테이블에 동적 `ALTER TABLE`을 실행하지 않는다.
+
+**`custom_field_definitions`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
+| field_key | VARCHAR(50) | NOT NULL (식별자, 예: `severity_custom`) |
+| label | VARCHAR(100) | NOT NULL |
+| data_type | VARCHAR(20) | NOT NULL, CHECK IN ('TEXT','NUMBER','DATE','BOOLEAN','SINGLE_SELECT','MULTI_SELECT') |
+| enumeration_set_id | BIGINT | FK → project_enumeration_sets.id(§3.28), ON DELETE SET NULL, NULL 허용(SINGLE_SELECT/MULTI_SELECT일 때만 사용) |
+| required | BOOLEAN | NOT NULL DEFAULT false |
+| default_value | TEXT | NULL |
+| display_order | INTEGER | NOT NULL DEFAULT 0 |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('ACTIVE','DEPRECATED'), DEFAULT 'ACTIVE' (하드 삭제 없음 — 소프트 비활성) |
+| created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (project_id, target_type, field_key)
+
+**`custom_field_values`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| field_id | BIGINT | FK → custom_field_definitions.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL (정의와 동일 값을 중복 저장 — `PolymorphicTargetValidator` 재사용을 위함, ADR-010 패턴) |
+| target_id | BIGINT | NOT NULL |
+| value | TEXT | NULL (TEXT/NUMBER/DATE/BOOLEAN은 문자열 직렬화, MULTI_SELECT는 JSON 배열 문자열) |
+| updated_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (field_id, target_type, target_id)
+
+### 3.27 `form_layouts` / `form_layout_sections` / `form_layout_fields` (ADR-012 §B)
+프로젝트+target_type당 레이아웃 1개만 지원(다중 레이아웃 전환 기능 제외).
+
+**`form_layouts`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (project_id, target_type)
+
+**`form_layout_sections`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| form_layout_id | BIGINT | FK → form_layouts.id, ON DELETE CASCADE, NOT NULL |
+| title | VARCHAR(100) | NOT NULL (예: "기본 정보") |
+| display_order | INTEGER | NOT NULL DEFAULT 0 |
+
+**`form_layout_fields`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| section_id | BIGINT | FK → form_layout_sections.id, ON DELETE CASCADE, NOT NULL |
+| field_source | VARCHAR(20) | NOT NULL, CHECK IN ('STANDARD','CUSTOM') |
+| standard_field_key | VARCHAR(50) | NULL(`STANDARD`일 때만. 유효값은 서비스 레이어 `StandardFieldKeyRegistry`가 target_type별로 화이트리스트 검증 — DB CHECK로는 표현하지 않음) |
+| custom_field_id | BIGINT | FK → custom_field_definitions.id(§3.26), ON DELETE CASCADE, NULL 허용(`CUSTOM`일 때만) |
+| display_order | INTEGER | NOT NULL DEFAULT 0 |
+| visible | BOOLEAN | NOT NULL DEFAULT true |
+
+CHECK: `(field_source='STANDARD' AND standard_field_key IS NOT NULL AND custom_field_id IS NULL) OR (field_source='CUSTOM' AND custom_field_id IS NOT NULL AND standard_field_key IS NULL)`
+
+> 레이아웃이 없는 프로젝트+target_type은 표준 필드를 코드 기본 순서로, 섹션 없이 보여준다 — 즉 설정하지 않으면 기존과 동일한 화면(하위 호환).
+
+### 3.28 `project_enumeration_sets` / `project_enumeration_values` (ADR-012 §C)
+**`project_enumeration_sets`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| enum_key | VARCHAR(50) | NOT NULL (예: `PRIORITY`, 또는 커스텀 필드 전용 `SEVERITY` 등) |
+| base_enum | VARCHAR(30) | NULL 허용, CHECK IN ('PRIORITY','REQUIREMENT_STATUS','ISSUE_STATUS','TEST_CASE_STATUS') — NULL이면 커스텀 필드 전용(기존 enum과 무관) |
+| name | VARCHAR(100) | NOT NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (project_id, enum_key)
+
+> **서비스 레이어 제약(DB 제약 아님)**: `base_enum IN ('REQUIREMENT_STATUS','ISSUE_STATUS','TEST_CASE_STATUS')`인 집합의 생성은 현재 `EnumerationSetService`가 거부한다 — 상태(Status) 값 자체의 확장은 이번 범위에서 제외(ADR-012 §C.1, `01-scope.md` §1.3 v4 비스코프 참고). `base_enum='PRIORITY'`와 `base_enum=NULL`만 생성 가능.
+
+**`project_enumeration_values`**
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| enumeration_set_id | BIGINT | FK → project_enumeration_sets.id, ON DELETE CASCADE, NOT NULL |
+| value_key | VARCHAR(50) | NOT NULL (예: `BLOCKER`) |
+| label | VARCHAR(100) | NOT NULL |
+| display_order | INTEGER | NOT NULL DEFAULT 0 |
+| is_system_default | BOOLEAN | NOT NULL DEFAULT false (true면 기존 고정 Java enum 값을 미러링한 행 — 삭제 금지, 라벨/순서만 수정 가능) |
+| status | VARCHAR(20) | NOT NULL, CHECK IN ('ACTIVE','DEPRECATED'), DEFAULT 'ACTIVE' |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+UNIQUE (enumeration_set_id, value_key)
+
+> **기존 테이블 영향(하위 호환성 — 반드시 확인)**: 프로젝트가 `base_enum='PRIORITY'` 집합을 최초 생성하는 순간, `requirements.priority`/`issues.priority`/`test_cases.priority`(§3.4·§3.5·§3.11)에 걸린 기존 CHECK 제약(`chk_..._priority`류, `V1__init.sql`/`V3__test_cases.sql` 유래, 정확한 제약명은 구현 시점에 원문 확인)을 제거하고, 검증 책임을 신규 `EnumerationValueValidator.requireValidValue(projectId, "PRIORITY", value)`(애플리케이션 레벨, 단일 진입점)로 옮긴다. 컬럼 단위 제약이라 **한 프로젝트라도 PRIORITY를 확장하면 전체 프로젝트에 대해 이 컬럼의 DB 레벨 안전장치가 느슨해진다.** `PRIORITY` 집합을 만들지 않은 프로젝트는 이 validator가 기존 Java `Priority` enum 값으로 검증하므로 동작은 바뀌지 않는다. 상태(`status`) 컬럼의 CHECK 제약은 그대로 유지한다(위 서비스 레이어 제약 참고).
+
+### 3.29 `workflow_transition_rules` (ADR-012 §D)
+대상은 `REQUIREMENT`/`ISSUE`만(`TEST_CASE`는 이미 상태가 단순해 범위에서 제외, GLOSSARY §2 그룹 2 패턴과 동일).
+
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
+| target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE') |
+| from_status | VARCHAR(20) | NOT NULL (해당 target_type의 Java enum 값 중 하나 — `RequirementStatus`/`IssueStatus`가 서로 다른 enum이라 공용 DB CHECK로 표현 불가, 서비스 레이어 화이트리스트로 검증) |
+| to_status | VARCHAR(20) | NOT NULL |
+| allowed_role | VARCHAR(20) | NULL 허용, CHECK IN ('PROJECT_ADMIN','MEMBER','VIEWER') (NULL이면 기존과 동일하게 `MEMBER+`) |
+| created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| created_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+CHECK: `from_status <> to_status`
+UNIQUE (project_id, target_type, from_status, to_status)
+
+> **적용 규칙(보수적 기본값)**: 프로젝트가 특정 target_type에 규칙을 하나도 등록하지 않으면 기존과 동일하게 모든 상태 간 자유 전이(하위 호환). 하나 이상 등록하면 그 프로젝트의 그 target_type은 화이트리스트 모드로 전환되어 등록된 (from,to) 조합만 허용한다. 기존 승인 게이트(§3.17 `approval_requests`, `DRAFT→APPROVED`)와는 AND 조건으로 공존한다. 시스템 `ADMIN`과 해당 프로젝트의 `PROJECT_ADMIN`은 화이트리스트와 무관하게 항상 모든 전이가 허용된다(lock-out 방지, ADR-011의 라이센스 ADMIN 로그인 예외와 동일한 설계 사유).
+
+### ERD 요약 추가분 (v4)
+```
+License (단독 테이블, project_id 없음 — 시스템 전역 1건의 ACTIVE)
+Project 1---N CustomFieldDefinition 1---N CustomFieldValue (target = Requirement|Issue|TestCase)
+Project 1---N FormLayout(target_type당 1개) 1---N FormLayoutSection 1---N FormLayoutField (optional FK: custom_field_id)
+Project 1---N ProjectEnumerationSet 1---N ProjectEnumerationValue
+Project 1---N WorkflowTransitionRule (target = Requirement|Issue)
 ```

@@ -24,6 +24,7 @@
 - **구조적 결정(스키마 변경, 아키텍처 변경, 외부 연동 방식 변경 등)을 내릴 때는 먼저 `docs/05-history/adr/`에 ADR을 작성한 뒤 진행한다.** 템플릿: `docs/05-history/adr/README.md`
 - **Git push 정책**: 운영 서버(`https://alm.ondalprincess.synology.me/`)에 반영하려면 `origin`뿐 아니라 `synology` remote에도 push해야 한다. `synology` push는 즉시 운영 배포로 이어지므로 명시적 배포 의도가 있을 때만 수행한다. 최신 정책은 `docs/00-meta/CURRENT-STATE.md` §4를 확인할 것 — `docs/03-process/08-dev-phases.md`와 `docs/02-design/02-architecture.md` §2.5의 "origin에만 push" 서술은 낡은 정책이다
 - **비스코프 항목을 임의로 구현하지 않는다.** `docs/01-requirements/01-scope.md` §1.3 참고
+- **모든 작업은 MD 문서에 빠짐없이 기록한다.** 소스 코드가 전부 사라지더라도 `docs/` 문서만 보고 동일한 프로젝트를 재구성할 수 있어야 한다는 것이 기준이다. 즉 설계 문서(`02-design/`의 02~05)는 항상 실제 구현과 1:1로 일치해야 하며, "나중에 한꺼번에 정리"하는 방식으로 미루지 않는다 — 기능 하나를 구현한 작업 안에서 바로 관련 설계 문서·ADR Status·`00-meta/CURRENT-STATE.md` §1 구현 진행 상태 표까지 함께 갱신한다. 구현 중 설계와 다르게 진행한 부분(예: 실제로 부여된 마이그레이션 번호, 설계 대비 변경된 필드명)이 있으면 그 차이도 문서에 반영한다 — 문서가 "제안 당시 상태"로 멈춰 있으면 안 된다
 - Java 21, Maven Wrapper(`mvnw`/`mvnw.cmd`) 사용 — 시스템 Maven 설치하지 않음
 - Testcontainers를 쓰는 통합 테스트는 `*IT.java`로 짓고 `mvn test`가 아닌 `mvn verify`에서만 실행되게 한다(`docs/05-history/adr/ADR-007-Testcontainers-IT분리.md`)
 

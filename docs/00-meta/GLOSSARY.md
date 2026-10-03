@@ -1,4 +1,4 @@
-> Owner: orchestrator (용어 추가·변경 제안은 requirements-analyst / architect) | Status: current | Last-reviewed: 2026-09-06
+> Owner: orchestrator (용어 추가·변경 제안은 requirements-analyst / architect) | Status: current | Last-reviewed: 2026-10-03
 > 상위 문서: [SPEC.md](SPEC.md)
 
 ## 이 문서의 목적
@@ -42,13 +42,25 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 변형 (v3) | `Variant` | `variants` | product line, edition, flavor | |
 | 요구사항-변형 적용 (v3) | `RequirementVariant` | `requirement_variants` | variantMapping | |
 | 대시보드 위젯 설정 (v3) | `DashboardWidgetConfig` | `dashboard_widget_configs` | widget(단독), layout, preference | |
+| 라이센스 (v4) | `License` | `licenses` | key(단독), subscription | 시스템 전역 1건(`status='ACTIVE'`)만 유효, ADR-011 |
+| 회원가입 | `SelfSignup` (서비스/API 접두로만 사용, 엔티티는 기존 `User` 재사용) | — (`users` 테이블 그대로 사용) | registration, signUp(붙여쓰기) | 신규 컬럼 없음, ADR-011 |
+| 커스텀 필드 정의 (v4) | `CustomFieldDefinition` | `custom_field_definitions` | customField(단독, 값과 혼용 금지) | ADR-012 §A |
+| 커스텀 필드 값 (v4) | `CustomFieldValue` | `custom_field_values` | fieldValue, value(단독) | `CustomFieldDefinition`과 1:N, ADR-012 §A |
+| 폼 레이아웃 (v4) | `FormLayout` | `form_layouts` | layout(단독), view | 프로젝트+target_type당 1개, ADR-012 §B |
+| 폼 레이아웃 섹션 (v4) | `FormLayoutSection` | `form_layout_sections` | group(단독), section(단독) | ADR-012 §B |
+| 폼 레이아웃 필드 배치 (v4) | `FormLayoutField` | `form_layout_fields` | fieldPlacement | `field_source`로 `STANDARD`/`CUSTOM` 구분, ADR-012 §B |
+| 프로젝트 열거형 집합 (v4) | `ProjectEnumerationSet` | `project_enumeration_sets` | enumSet, enumeration(단독) | `base_enum`이 있으면 기존 고정 enum 확장, ADR-012 §C |
+| 프로젝트 열거형 값 (v4) | `ProjectEnumerationValue` | `project_enumeration_values` | enumValue, option | ADR-012 §C |
+| 워크플로우 전이 규칙 (v4) | `WorkflowTransitionRule` | `workflow_transition_rules` | transition(단독), rule(단독) | 범용 워크플로우 엔진 아님 — 화이트리스트 매트릭스만, `ApprovalRequest`/`ReviewCycle`과 별개 기능, ADR-012 §D |
+| 요구사항 문서 레벨 (v4) | `RequirementLevel` (값, 전용 엔티티 아님) | `requirements.requirement_level` | docLevel, docType, requirementType(기존 `Requirement.type`과 혼동) | `Requirement.type`(성격 분류: FUNCTIONAL/NON_FUNCTIONAL/BUSINESS)과 다른 축. PRD/SRS 구분만 표현, 상하 계층(`parent_requirement_id`)과는 독립 — ADR-013 |
 
 ## 2. 다형 연관 공통 개념
 
 `(target_type, target_id)` 쌍을 쓰는 테이블은 **동일 개념이 아니라 세 그룹으로 나뉜다**(2026-09-06 실제 코드 대조로 확인, 이전 "9개 테이블이 동일 개념을 공유한다"는 서술은 부정확했다):
 
-- `traceability_links`, `comments` — `REQUIREMENT` / `ISSUE` / `TEST_CASE`
+- `traceability_links`, `comments`, `custom_field_values`(v4, ADR-012 §A) — `REQUIREMENT` / `ISSUE` / `TEST_CASE`
 - `release_items`, `approval_requests`, `git_links`, `jenkins_builds` — `REQUIREMENT` / `ISSUE`만
+- `workflow_transition_rules`(v4, ADR-012 §D)는 `(target_type, target_id)` 쌍이 아니라 `(target_type, from_status, to_status)`를 쓰므로 이 분류 자체에 속하지 않는다 — `PolymorphicTargetValidator`의 대상이 아니다
 - `audit_logs` — 별개 enum `AuditTargetType`(§3 참고), 값 집합 자체가 다름
 
 | 개념 | 채택 용어 | 금지 |
@@ -57,7 +69,7 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 대상 참조 | `TargetRef` (값 객체: type + id) | ref, target(단독), pointer |
 | 링크 출발지 | `sourceType` / `sourceId` | fromType, originType |
 
-> **검증 로직 중복은 ADR-010으로 해결 완료.** `PolymorphicTargetValidator`(`com.lightalm.service.support`, `ensureExists(Long projectId, TargetType targetType, Long targetId)`)가 위 첫 두 그룹(대상 존재 여부·프로젝트 소속 검증)을 통합한다. **`audit_logs`는 대상이 아니며 포함할 수 없다** — `AuditTargetType`은 값 집합이 다른 별개 enum이기 때문이다.
+> **검증 로직 중복은 ADR-010으로 해결 완료.** `PolymorphicTargetValidator`(`com.lightalm.service.support`, `ensureExists(Long projectId, TargetType targetType, Long targetId)`)가 위 첫 두 그룹(대상 존재 여부·프로젝트 소속 검증)을 통합한다. **`audit_logs`는 대상이 아니며 포함할 수 없다** — `AuditTargetType`은 값 집합이 다른 별개 enum이기 때문이다. v4의 `custom_field_values`(ADR-012 §A)도 이 검증기를 그대로 재사용한다(새 검증 로직 금지, `docs/CLAUDE.md` "다형 연관" 원칙).
 >
 > `TargetRef` 값 객체 추출(원시 타입 집착 해소)은 여전히 향후 과제로 남아 있다. 대상은 `TargetType`을 쓰는 위 두 그룹뿐이며, `audit_logs`(`AuditTargetType`)는 이 리팩터링의 대상이 아니다. 착수 전 ADR을 먼저 쓴다.
 
@@ -84,6 +96,13 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | `RiskLikelihood` / `RiskImpact` (v3) | `LOW`, `MEDIUM`, `HIGH` |
 | `RiskStatus` (v3) | `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED` |
 | `Applicability` (v3) | `INCLUDED`, `EXCLUDED`, `MODIFIED` |
+| `LicenseType` (v4) | `TRIAL`, `STANDARD`, `ENTERPRISE` (메타데이터로만 저장, 기능 차등 적용 없음 — ADR-011 §2.2) |
+| `LicenseStatus` (v4) | `ACTIVE`, `SUPERSEDED`, `REVOKED` (`ACTIVE`는 항상 최대 1건) |
+| `CustomFieldDataType` (v4) | `TEXT`, `NUMBER`, `DATE`, `BOOLEAN`, `SINGLE_SELECT`, `MULTI_SELECT` |
+| `CustomFieldStatus` / `ProjectEnumerationValueStatus` (v4) | `ACTIVE`, `DEPRECATED` (하드 삭제 없음 — 공용 "소프트 비활성" 값 집합이지만 서로 다른 enum, 합치지 않는다) |
+| `FormLayoutFieldSource` (v4) | `STANDARD`, `CUSTOM` |
+| `EnumerationBaseEnum` (v4) | `PRIORITY`, `REQUIREMENT_STATUS`, `ISSUE_STATUS`, `TEST_CASE_STATUS` (스키마상 4개 모두 허용하지만, 서비스 레이어는 현재 `PRIORITY`만 집합 생성을 허용 — ADR-012 §C.1) |
+| `RequirementLevel` (v4) | `PRD`, `SRS` (기본값 `SRS`. 상하 관계는 강제하지 않음 — ADR-013) |
 
 > `Priority`는 세 엔티티가 공유하므로 **하나의 enum을 공용 패키지에 둔다.** `RequirementPriority`/`IssuePriority`로 나누지 않는다(같은 개념 = 같은 이름).
 > `IN_PROGRESS`는 `RequirementStatus`와 `IssueStatus`에 모두 존재하지만 **서로 다른 enum**이다. 문자열로 비교하지 말고 타입으로 구분한다.
@@ -125,7 +144,7 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 검증, 불리언 반환 | `is`, `can`, `has` | check |
 | 변환 | `to` / `from` | convert, as, parse |
 
-> `06-auth.md`가 이미 `ProjectMemberService.requireRole(...)`을 쓰고 있으므로 권한 검사 동사는 `require`로 고정한다.
+> `06-auth.md`가 이미 `ProjectMemberService.requireRole(...)`을 쓰고 있으므로 권한 검사 동사는 `require`로 고정한다. v4의 `LicenseEnforcementService.requireActiveLicense()`/`requireSeatAvailable()`(ADR-011), `WorkflowTransitionPolicy.requireAllowedTransition(...)`(ADR-012 §D)도 동일한 규칙을 따른다.
 
 ## 6. 화면·UI 용어 (한글 ↔ 영문)
 
@@ -139,9 +158,18 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 변경 이력 뷰어 | 변경 이력 | `AuditLogViewer` | §5.9 |
 | 위험 관리 보드 (v3) | 위험 관리 | `RiskBoard` | §5.13 |
 | 요구사항 문서 뷰 (v3) | 문서 보기 | `RequirementDocumentView` | §5.14 |
+| 회원가입 (v4) | 회원가입 | `SignupPage` | §5.16 |
+| 라이센스 관리 (v4) | 라이센스 관리 | `LicenseAdminPage` | §5.17 |
+| 프로젝트 설정 — 필드 탭 (v4) | 필드 | `CustomFieldSettingsTab` | §5.18 |
+| 프로젝트 설정 — 폼 레이아웃 탭 (v4) | 폼 레이아웃 | `FormLayoutSettingsTab` | §5.19 |
+| 프로젝트 설정 — 열거형 탭 (v4) | 열거형 | `EnumerationSettingsTab` | §5.20 |
+| 프로젝트 설정 — 워크플로우 탭 (v4) | 워크플로우 | `WorkflowRuleSettingsTab` | §5.21 |
+| 작업 항목 유형별 트리 패널 (v4) | 작업 항목 | `WorkItemTreePanel` | §5.22 |
 
 > `02-competitive-reference.md` 원칙 4에 따라, 특정 상용 제품의 브랜드화된 기능명은 이 표에 넣지 않는다.
 
 ## 갱신 이력
 - 2026-09-04: 최초 작성. 03-data-model.md §3.1~3.24, 01-scope.md §1.4, 04-api.md, 05-frontend.md에서 용어 추출.
 - 2026-09-06: 실제 코드 대조 결과 반영. §3 `TargetType` 행이 `TargetType`/`AuditTargetType` 두 개 별개 enum을 합쳐놨던 오류를 분리. §2 "9개 테이블이 동일 개념" 서술을 3그룹 분류로 정정하고 ADR-010(`PolymorphicTargetValidator`) 해결 완료 사실 반영.
+- 2026-10-03: v4 확장(ADR-011·ADR-012) 개념 반영. §1에 `License`/`SelfSignup`/`CustomFieldDefinition`/`CustomFieldValue`/`FormLayout`/`FormLayoutSection`/`FormLayoutField`/`ProjectEnumerationSet`/`ProjectEnumerationValue`/`WorkflowTransitionRule` 추가. §2에 `custom_field_values`를 첫 그룹에, `workflow_transition_rules`는 `(target_type,target_id)` 쌍을 쓰지 않아 다형 연관 분류 대상이 아님을 명시. §3에 `LicenseType`/`LicenseStatus`/`CustomFieldDataType`/`CustomFieldStatus`/`FormLayoutFieldSource`/`EnumerationBaseEnum` 추가. §5에 `requireActiveLicense`/`requireSeatAvailable`/`requireAllowedTransition`이 기존 `require` 동사 규칙을 따른다고 기록. §6에 신규 화면 6개 추가.
+- 2026-10-03: ADR-013 반영. §1에 `RequirementLevel`(`requirements.requirement_level`, `Requirement.type`과 다른 축) 추가. §3에 `RequirementLevel` enum(`PRD`,`SRS`) 추가. §6에 `WorkItemTreePanel`(§5.22) 추가.
