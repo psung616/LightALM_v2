@@ -7,6 +7,7 @@ import {
 } from '../../api/workflow';
 import type { TargetType, ProjectRole } from '../../types/common';
 import type { WorkflowTransitionRule } from '../../types/workflow';
+import { PROJECT_ROLE_DISPLAY_NAMES, SYSTEM_ROLE_DISPLAY_NAMES } from '../../auth/roleDisplayNames';
 
 /**
  * ADR-012 §D.6(Phase 23) 설정 화면. target_type(요구사항/이슈만, 테스트케이스는 범위 밖 — §D.1)
@@ -26,12 +27,25 @@ const TARGET_TYPE_OPTIONS: [TargetType, string][] = [
   ['ISSUE', '이슈'],
 ];
 
+/**
+ * 새로 고를 수 있는 "최소 역할" 옵션(value는 API 값 그대로, 라벨만 표시명). ADR-015 P3: VIEWER(Project User)는
+ * 읽기 전용이라 상태 전이를 할 수 없으므로(changeStatus의 MEMBER+ 사전 검사) 새 선택지에서 뺀다.
+ * DB/API는 VIEWER 값을 계속 허용하므로, 이미 VIEWER로 저장된 규칙에만 LEGACY_VIEWER_OPTION을 덧붙여 표시한다.
+ */
 const ROLE_OPTIONS: [string, string][] = [
-  ['', 'MEMBER+ (기본값)'],
-  ['VIEWER', 'VIEWER+'],
-  ['MEMBER', 'MEMBER+'],
-  ['PROJECT_ADMIN', 'PROJECT_ADMIN+'],
+  ['', `${PROJECT_ROLE_DISPLAY_NAMES.MEMBER}+ (기본값)`],
+  ['MEMBER', `${PROJECT_ROLE_DISPLAY_NAMES.MEMBER}+`],
+  ['PROJECT_ADMIN', `${PROJECT_ROLE_DISPLAY_NAMES.PROJECT_ADMIN}+`],
 ];
+
+const LEGACY_VIEWER_OPTION: [string, string] = [
+  'VIEWER',
+  `${PROJECT_ROLE_DISPLAY_NAMES.VIEWER}+ (실제로는 ${PROJECT_ROLE_DISPLAY_NAMES.MEMBER}+와 동일)`,
+];
+
+function roleOptionsFor(rule: WorkflowTransitionRule): [string, string][] {
+  return rule.allowedRole === 'VIEWER' ? [...ROLE_OPTIONS, LEGACY_VIEWER_OPTION] : ROLE_OPTIONS;
+}
 
 export function WorkflowRuleSettingsTab({ projectId }: { projectId: number }) {
   const [targetType, setTargetType] = useState<TargetType>('REQUIREMENT');
@@ -118,8 +132,8 @@ function WorkflowRuleMatrix({ projectId, targetType }: { projectId: number; targ
     <div>
       {rulesQuery.data.freeTransitionMode && (
         <p className="mb-4 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          현재 자유 전이 모드입니다 — 규칙을 추가하면 그 순간부터 여기 표시되지 않은 전이는 차단됩니다. (시스템
-          ADMIN과 이 프로젝트의 PROJECT_ADMIN은 규칙과 무관하게 항상 모든 전이가 가능합니다.)
+          현재 자유 전이 모드입니다 — 규칙을 추가하면 그 순간부터 여기 표시되지 않은 전이는 차단됩니다. ({SYSTEM_ROLE_DISPLAY_NAMES.ADMIN}과
+          이 프로젝트의 {PROJECT_ROLE_DISPLAY_NAMES.PROJECT_ADMIN}은 규칙과 무관하게 항상 모든 전이가 가능합니다.)
         </p>
       )}
 
@@ -159,7 +173,7 @@ function WorkflowRuleMatrix({ projectId, targetType }: { projectId: number; targ
                             onChange={(e) => changeRole(rule, e.target.value)}
                             className="rounded border border-slate-300 px-1 py-0.5 text-[10px]"
                           >
-                            {ROLE_OPTIONS.map(([value, label]) => (
+                            {roleOptionsFor(rule).map(([value, label]) => (
                               <option key={value} value={value}>{label}</option>
                             ))}
                           </select>

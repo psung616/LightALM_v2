@@ -9,8 +9,8 @@ import com.lightalm.dto.UpdateUserRequest;
 import com.lightalm.dto.UserResponse;
 import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.exception.ValidationException;
-import com.lightalm.license.service.LicenseEnforcementService;
 import com.lightalm.repository.UserRepository;
+import com.lightalm.user.service.SystemAdminRetentionPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,7 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LicenseEnforcementService licenseEnforcementService;
+    private final SystemAdminRetentionPolicy systemAdminRetentionPolicy;
 
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> list(Pageable pageable) {
@@ -43,8 +43,6 @@ public class UserService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ValidationException("이미 사용 중인 email입니다: " + request.getEmail());
         }
-        licenseEnforcementService.requireActiveLicense();
-        licenseEnforcementService.requireSeatAvailable();
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
@@ -58,6 +56,9 @@ public class UserService {
 
     @Transactional
     public UserResponse update(Long id, UpdateUserRequest request) {
+        if (removesFromActiveAdmins(request)) {
+            systemAdminRetentionPolicy.requireAnotherActiveAdmin(id);
+        }
         User user = getEntity(id);
         if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
             throw new ValidationException("이미 사용 중인 email입니다: " + request.getEmail());
@@ -75,8 +76,23 @@ public class UserService {
 
     @Transactional
     public void deactivate(Long id) {
+        systemAdminRetentionPolicy.requireAnotherActiveAdmin(id);
         User user = getEntity(id);
         user.setEnabled(false);
+    }
+
+    /**
+     * ADR-015 §3.1. 요청이 대상을 활성 ADMIN 집합에서 빠지게 할 수 있는 경우(ADMIN 해제 또는 비활성화)만
+     * 마지막 ADMIN 검사(행 락)를 수행한다. email/fullName만 바꾸는 요청은 락을 잡지 않는다.
+     *
+     * <p>검사는 대상 엔티티를 읽기 <b>전에</b> 수행한다. 락 조회가 먼저 실행되면 대상이 활성 ADMIN일 때
+     * 영속성 컨텍스트에 최신(락 획득 후) 상태로 올라와, 동시 트랜잭션이 커밋한 값을 덮어쓰는
+     * 오래된 엔티티로 UPDATE하는 일이 없다.</p>
+     */
+    private static boolean removesFromActiveAdmins(UpdateUserRequest request) {
+        boolean revokesAdmin = request.getSystemRole() != null && request.getSystemRole() != SystemRole.ADMIN;
+        boolean disables = Boolean.FALSE.equals(request.getEnabled());
+        return revokesAdmin || disables;
     }
 
     @Transactional

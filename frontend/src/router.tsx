@@ -4,7 +4,6 @@ import { ProjectLayout } from './components/ProjectLayout';
 import { ProtectedRoute, AdminRoute } from './auth/ProtectedRoute';
 import { GuestOnlyRoute } from './auth/GuestOnlyRoute';
 import { LoginPage } from './pages/Login/LoginPage';
-import { SignupPage } from './pages/Signup/SignupPage';
 import { ProjectListPage } from './pages/ProjectList/ProjectListPage';
 import { ProjectNewPage } from './pages/ProjectNew/ProjectNewPage';
 import { ProjectDashboardPage } from './pages/ProjectDashboard/ProjectDashboardPage';
@@ -15,7 +14,6 @@ import { IssueDetailPage } from './pages/IssueDetail/IssueDetailPage';
 import { TraceabilityPage } from './pages/Traceability/TraceabilityPage';
 import { ProjectSettingsPage } from './pages/ProjectSettings/ProjectSettingsPage';
 import { AdminUsersPage } from './pages/AdminUsers/AdminUsersPage';
-import { AdminLicensesPage } from './pages/AdminLicenses/AdminLicensesPage';
 import { AdminThemePage } from './pages/AdminTheme/AdminThemePage';
 import { MyTasksPage } from './pages/MyTasks/MyTasksPage';
 import { TestCaseListPage } from './pages/TestCaseList/TestCaseListPage';
@@ -33,7 +31,6 @@ export const router = createBrowserRouter([
     element: <GuestOnlyRoute />,
     children: [
       { path: '/login', element: <LoginPage /> },
-      { path: '/signup', element: <SignupPage /> },
     ],
   },
   {
@@ -43,13 +40,12 @@ export const router = createBrowserRouter([
         element: <TopNavbar />,
         children: [
           { path: '/', element: <ProjectListPage /> },
-          { path: '/projects/new', element: <ProjectNewPage /> },
           { path: '/my-tasks', element: <MyTasksPage /> },
           {
             element: <AdminRoute />,
             children: [
+              { path: '/projects/new', element: <ProjectNewPage /> },
               { path: '/admin/users', element: <AdminUsersPage /> },
-              { path: '/admin/licenses', element: <AdminLicensesPage /> },
               { path: '/admin/theme', element: <AdminThemePage /> },
             ],
           },

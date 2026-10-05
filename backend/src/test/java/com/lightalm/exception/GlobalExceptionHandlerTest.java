@@ -20,7 +20,7 @@ import com.lightalm.dto.ErrorResponse;
  * {@code AuthorizationDeniedException}(AccessDeniedException의 하위 타입)이 던져지는데,
  * 전용 핸들러가 없으면 catch-all({@link GlobalExceptionHandler#handleUnexpected})로 떨어져
  * 403 대신 500이 응답되는 전역 버그가 있었다({@code ThemeAdminController}에서 실제 curl로
- * 재현, {@code LicenseAdminController} 등 기존 ADMIN 전용 컨트롤러에도 동일하게 영향).
+ * 재현, {@code UserController} 등 기존 ADMIN 전용 컨트롤러에도 동일하게 영향).
  * 이 테스트는 그 수정(handleAccessDenied)이 403/FORBIDDEN을 반환하는지 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -82,5 +82,18 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().getError()).isEqualTo("VALIDATION_ERROR");
+    }
+
+    /** ADR-015 D3: 마지막 활성 System Admin 해제/비활성화 거부는 전용 코드 LAST_ACTIVE_ADMIN(400). */
+    @Test
+    void handleLastActiveAdminRemoval_returns400WithDedicatedCode() {
+        when(request.getRequestURI()).thenReturn("/api/users/1");
+
+        ResponseEntity<ErrorResponse> response = handler.handleLastActiveAdminRemoval(
+                new com.lightalm.user.domain.LastActiveAdminRemovalException(), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getError()).isEqualTo("LAST_ACTIVE_ADMIN");
+        assertThat(response.getBody().getMessage()).contains("System Admin");
     }
 }

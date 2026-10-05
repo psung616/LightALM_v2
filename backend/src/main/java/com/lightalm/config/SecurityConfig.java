@@ -6,6 +6,8 @@ import com.lightalm.security.JsonAuthenticationEntryPoint;
 import com.lightalm.security.JsonAuthenticationFailureHandler;
 import com.lightalm.security.JsonAuthenticationSuccessHandler;
 import com.lightalm.security.JsonUsernamePasswordAuthenticationFilter;
+import com.lightalm.repository.UserRepository;
+import com.lightalm.security.SessionPrincipalRefreshFilter;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -41,6 +44,7 @@ public class SecurityConfig {
     private final JsonAuthenticationEntryPoint authenticationEntryPoint;
     private final JsonAccessDeniedHandler accessDeniedHandler;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @org.springframework.beans.factory.annotation.Value("${light-alm.cors.allowed-origins}")
     private String allowedOrigins;
@@ -71,10 +75,14 @@ public class SecurityConfig {
                         .ignoringRequestMatchers("/api/webhooks/**"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/public/license-status", "/api/public/theme", "/api/webhooks/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/public/theme", "/api/webhooks/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(new CsrfCookieEnsureFilter(), CsrfFilter.class)
+                // ADR-016: 세션 principal의 enabled/systemRole을 요청마다 DB로 재검증(인가 판단 직전)
+                .addFilterBefore(new SessionPrincipalRefreshFilter(
+                                userRepository, authenticationEntryPoint, new HttpSessionSecurityContextRepository()),
+                        AuthorizationFilter.class)
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler())

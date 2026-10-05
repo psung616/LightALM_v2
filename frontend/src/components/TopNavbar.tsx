@@ -22,11 +22,6 @@ export function TopNavbar() {
             </Link>
           )}
           {user?.systemRole === 'ADMIN' && (
-            <Link to="/admin/licenses" className="text-sm text-text-muted hover:text-text">
-              라이센스 관리
-            </Link>
-          )}
-          {user?.systemRole === 'ADMIN' && (
             <Link to="/admin/theme" className="text-sm text-text-muted hover:text-text">
               테마 설정
             </Link>

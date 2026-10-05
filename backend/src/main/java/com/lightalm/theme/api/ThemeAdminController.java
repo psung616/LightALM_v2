@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * ADR-014 §4/§7. 시스템 테마(색상 프리셋) 설정 조회/변경 — 시스템 ADMIN 전용
- * ({@code LicenseAdminController}와 동일한 권한 패턴).
+ * ({@code UserController}와 동일한 권한 패턴).
  */
 @RestController
 @RequestMapping("/api/admin/theme-settings")

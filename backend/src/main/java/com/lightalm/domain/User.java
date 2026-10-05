@@ -16,8 +16,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.DynamicUpdate;
 
+/**
+ * {@code @DynamicUpdate}(ADR-016 D3): 값이 바뀐 컬럼만 UPDATE한다. email/fullName만 수정하는 트랜잭션이
+ * 동시에 커밋된 system_role/enabled 변경을 옛 값으로 되돌리지 않도록(lost update 방지).
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "users")
 @Getter
 @Setter

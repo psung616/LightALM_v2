@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * ADR-014 §4. 공개 엔드포인트 — 앱 부트스트랩이 비인증 상태로 호출한다
- * (ADR-011의 {@code PublicLicenseStatusController}와 동일한 패턴).
+ * (SecurityConfig의 permitAll 목록에 등록됨).
  */
 @RestController
 @RequestMapping("/api/public/theme")

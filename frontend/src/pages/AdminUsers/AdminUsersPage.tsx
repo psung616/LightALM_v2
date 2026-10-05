@@ -1,12 +1,26 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import { createUser, deactivateUser, listUsers, updateUser } from '../../api/user';
-import type { SystemRole } from '../../types/common';
+import type { ApiErrorResponse, SystemRole } from '../../types/common';
 import { Modal } from '../../components/Modal';
+import { SYSTEM_ROLE_DISPLAY_NAMES, SYSTEM_ROLE_OPTIONS } from '../../auth/roleDisplayNames';
 
+function serverErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError<ApiErrorResponse>(err) && err.response?.data?.message) {
+    return err.response.data.message;
+  }
+  return fallback;
+}
+
+/**
+ * ADR-015 §3.7: 역할 변경/비활성화가 실패하면(특히 400 LAST_ACTIVE_ADMIN) 서버 message를 상단에 표시하고,
+ * 사용자 목록을 다시 불러와 역할 드롭다운을 서버 값(원래 값)으로 되돌린다.
+ */
 export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const usersQuery = useQuery({ queryKey: ['users', 'all'], queryFn: () => listUsers(0, 200) });
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ username: '', password: '', email: '', fullName: '', systemRole: 'USER' as SystemRole });
@@ -22,13 +36,27 @@ export function AdminUsersPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: (id: number) => deactivateUser(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'all'] }),
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ['users', 'all'] });
+    },
+    onError: (err) => {
+      setActionError(serverErrorMessage(err, '사용자 비활성화에 실패했습니다.'));
+      queryClient.invalidateQueries({ queryKey: ['users', 'all'] });
+    },
   });
 
   const roleMutation = useMutation({
     mutationFn: ({ id, email, fullName, systemRole }: { id: number; email: string; fullName: string; systemRole: SystemRole }) =>
       updateUser(id, { email, fullName, systemRole }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users', 'all'] }),
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ['users', 'all'] });
+    },
+    onError: (err) => {
+      setActionError(serverErrorMessage(err, '시스템 역할 변경에 실패했습니다.'));
+      queryClient.invalidateQueries({ queryKey: ['users', 'all'] });
+    },
   });
 
   return (
@@ -43,6 +71,8 @@ export function AdminUsersPage() {
           새 사용자
         </button>
       </div>
+
+      {actionError && <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{actionError}</p>}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm">
@@ -68,8 +98,9 @@ export function AdminUsersPage() {
                     onChange={(e) => roleMutation.mutate({ id: u.id, email: u.email, fullName: u.fullName, systemRole: e.target.value as SystemRole })}
                     className="rounded-md border border-slate-300 px-2 py-1 text-sm"
                   >
-                    <option value="USER">USER</option>
-                    <option value="ADMIN">ADMIN</option>
+                    {SYSTEM_ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>{SYSTEM_ROLE_DISPLAY_NAMES[r]}</option>
+                    ))}
                   </select>
                 </td>
                 <td className="px-3 py-2">{u.enabled ? '활성' : '비활성'}</td>
@@ -142,8 +173,9 @@ export function AdminUsersPage() {
                 onChange={(e) => setCreateForm({ ...createForm, systemRole: e.target.value as SystemRole })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
+                {SYSTEM_ROLE_OPTIONS.map((r) => (
+                  <option key={r} value={r}>{SYSTEM_ROLE_DISPLAY_NAMES[r]}</option>
+                ))}
               </select>
             </div>
             <button

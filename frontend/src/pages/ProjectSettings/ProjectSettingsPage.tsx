@@ -19,6 +19,7 @@ import {
   updateCustomFieldDefinition,
 } from '../../api/customField';
 import type { ProjectRole } from '../../types/common';
+import { PROJECT_ROLE_DISPLAY_NAMES, PROJECT_ROLE_OPTIONS } from '../../auth/roleDisplayNames';
 import type { CustomFieldDataType, CustomFieldTargetType } from '../../types/customField';
 import { FullScreenLoader } from '../../components/FullScreenLoader';
 import { FormLayoutSettingsTab } from './FormLayoutSettingsTab';
@@ -185,9 +186,9 @@ function MembersTab({ projectId }: { projectId: number }) {
                   onChange={(e) => roleMutation.mutate({ uid: m.userId, r: e.target.value as ProjectRole })}
                   className="rounded-md border border-slate-300 px-2 py-1 text-sm"
                 >
-                  <option value="VIEWER">VIEWER</option>
-                  <option value="MEMBER">MEMBER</option>
-                  <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+                  {PROJECT_ROLE_OPTIONS.map((r) => (
+                    <option key={r} value={r}>{PROJECT_ROLE_DISPLAY_NAMES[r]}</option>
+                  ))}
                 </select>
               </td>
               <td className="py-2 text-right">
@@ -220,9 +221,9 @@ function MembersTab({ projectId }: { projectId: number }) {
           />
         )}
         <select value={role} onChange={(e) => setRole(e.target.value as ProjectRole)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
-          <option value="VIEWER">VIEWER</option>
-          <option value="MEMBER">MEMBER</option>
-          <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+          {PROJECT_ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>{PROJECT_ROLE_DISPLAY_NAMES[r]}</option>
+          ))}
         </select>
         <button
           type="button"
