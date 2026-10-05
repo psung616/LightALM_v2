@@ -1,4 +1,4 @@
-> Owner: orchestrator (용어 추가·변경 제안은 requirements-analyst / architect) | Status: current | Last-reviewed: 2026-10-03
+> Owner: orchestrator (용어 추가·변경 제안은 requirements-analyst / architect) | Status: current | Last-reviewed: 2026-10-05
 > 상위 문서: [SPEC.md](SPEC.md)
 
 ## 이 문서의 목적
@@ -53,6 +53,7 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 프로젝트 열거형 값 (v4) | `ProjectEnumerationValue` | `project_enumeration_values` | enumValue, option | ADR-012 §C |
 | 워크플로우 전이 규칙 (v4) | `WorkflowTransitionRule` | `workflow_transition_rules` | transition(단독), rule(단독) | 범용 워크플로우 엔진 아님 — 화이트리스트 매트릭스만, `ApprovalRequest`/`ReviewCycle`과 별개 기능, ADR-012 §D |
 | 요구사항 문서 레벨 (v4) | `RequirementLevel` (값, 전용 엔티티 아님) | `requirements.requirement_level` | docLevel, docType, requirementType(기존 `Requirement.type`과 혼동) | `Requirement.type`(성격 분류: FUNCTIONAL/NON_FUNCTIONAL/BUSINESS)과 다른 축. PRD/SRS 구분만 표현, 상하 계층(`parent_requirement_id`)과는 독립 — ADR-013 |
+| 시스템 테마 설정 (v4) | `SystemThemeSettings` | `system_theme_settings` | theme(단독), setting(단독), config(단독) | 시스템 전역 1행만 유효(PK 고정값 1, `CHECK(id=1)`). 라이트/다크 모드는 이 엔티티에 속하지 않음(서버 미저장, 개인 브라우저 선호) — ADR-014 |
 
 ## 2. 다형 연관 공통 개념
 
@@ -103,6 +104,7 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | `FormLayoutFieldSource` (v4) | `STANDARD`, `CUSTOM` |
 | `EnumerationBaseEnum` (v4) | `PRIORITY`, `REQUIREMENT_STATUS`, `ISSUE_STATUS`, `TEST_CASE_STATUS` (스키마상 4개 모두 허용하지만, 서비스 레이어는 현재 `PRIORITY`만 집합 생성을 허용 — ADR-012 §C.1) |
 | `RequirementLevel` (v4) | `PRD`, `SRS` (기본값 `SRS`. 상하 관계는 강제하지 않음 — ADR-013) |
+| `ThemeColorPreset` (v4) | `DEFAULT`, `RED`, `BLUE`, `GREEN`, `PURPLE` (기본값 `DEFAULT` — 기존 라벤더-블루 토큰과 동일값. 특정 기업의 등록 브랜드 컬러를 쓰지 않는 범용 팔레트 — ADR-014) |
 
 > `Priority`는 세 엔티티가 공유하므로 **하나의 enum을 공용 패키지에 둔다.** `RequirementPriority`/`IssuePriority`로 나누지 않는다(같은 개념 = 같은 이름).
 > `IN_PROGRESS`는 `RequirementStatus`와 `IssueStatus`에 모두 존재하지만 **서로 다른 enum**이다. 문자열로 비교하지 말고 타입으로 구분한다.
@@ -165,6 +167,8 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 프로젝트 설정 — 열거형 탭 (v4) | 열거형 | `EnumerationSettingsTab` | §5.20 |
 | 프로젝트 설정 — 워크플로우 탭 (v4) | 워크플로우 | `WorkflowRuleSettingsTab` | §5.21 |
 | 작업 항목 유형별 트리 패널 (v4) | 작업 항목 | `WorkItemTreePanel` | §5.22 |
+| 테마 설정 (v4) | 테마 설정 | `ThemeAdminPage` | §5.23 |
+| 라이트/다크 모드 토글 (v4) | 다크 모드 | `ColorModeToggle` | §5.3, §5.23 |
 
 > `02-competitive-reference.md` 원칙 4에 따라, 특정 상용 제품의 브랜드화된 기능명은 이 표에 넣지 않는다.
 
@@ -173,3 +177,4 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 - 2026-09-06: 실제 코드 대조 결과 반영. §3 `TargetType` 행이 `TargetType`/`AuditTargetType` 두 개 별개 enum을 합쳐놨던 오류를 분리. §2 "9개 테이블이 동일 개념" 서술을 3그룹 분류로 정정하고 ADR-010(`PolymorphicTargetValidator`) 해결 완료 사실 반영.
 - 2026-10-03: v4 확장(ADR-011·ADR-012) 개념 반영. §1에 `License`/`SelfSignup`/`CustomFieldDefinition`/`CustomFieldValue`/`FormLayout`/`FormLayoutSection`/`FormLayoutField`/`ProjectEnumerationSet`/`ProjectEnumerationValue`/`WorkflowTransitionRule` 추가. §2에 `custom_field_values`를 첫 그룹에, `workflow_transition_rules`는 `(target_type,target_id)` 쌍을 쓰지 않아 다형 연관 분류 대상이 아님을 명시. §3에 `LicenseType`/`LicenseStatus`/`CustomFieldDataType`/`CustomFieldStatus`/`FormLayoutFieldSource`/`EnumerationBaseEnum` 추가. §5에 `requireActiveLicense`/`requireSeatAvailable`/`requireAllowedTransition`이 기존 `require` 동사 규칙을 따른다고 기록. §6에 신규 화면 6개 추가.
 - 2026-10-03: ADR-013 반영. §1에 `RequirementLevel`(`requirements.requirement_level`, `Requirement.type`과 다른 축) 추가. §3에 `RequirementLevel` enum(`PRD`,`SRS`) 추가. §6에 `WorkItemTreePanel`(§5.22) 추가.
+- 2026-10-05: ADR-014(시스템 테마 설정) 반영. §1에 `SystemThemeSettings`(`system_theme_settings`, 시스템 전역 1행) 추가. §3에 `ThemeColorPreset` enum(`DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE`) 추가. §6에 `ThemeAdminPage`(§5.23)·`ColorModeToggle`(§5.3·§5.23) 추가. 라이트/다크 모드는 서버에 저장하지 않는 개인 브라우저 선호라 도메인 개념(§1)에는 포함하지 않음을 명시.

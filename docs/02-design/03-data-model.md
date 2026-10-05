@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-03
+> Owner: architect | Status: current | Last-reviewed: 2026-10-05
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 3. 데이터 모델 (엔티티 & DB 테이블)
@@ -100,7 +100,7 @@ UNIQUE (project_id, user_id)
 |---|---|---|
 | id | BIGSERIAL | PK |
 | project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NOT NULL |
-| source_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') (`TEST_CASE`는 ADR-013에서 추가 — 아래 참고) |
+| source_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') (`TEST_CASE`는 v2 확장 `V3__test_cases.sql`에서 이미 추가됨, Phase 12 — 아래 정정 각주 참고) |
 | source_id | BIGINT | NOT NULL |
 | target_type | VARCHAR(20) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE') |
 | target_id | BIGINT | NOT NULL |
@@ -114,7 +114,7 @@ UNIQUE (source_type, source_id, target_type, target_id, link_type) — 동일 �
 
 > **(v2 확장)** `TEST_CASE`를 `source_type`/`target_type`에 추가한 이유: 별도의 요구사항↔테스트케이스 연결 테이블을 새로 만들지 않고, 기존 `traceability_links`에 이미 정의되어 있는 `link_type='TESTS'` 값을 그대로 재사용해 `REQUIREMENT → TEST_CASE` 링크를 표현하기 위함이다(§3.11 참고).
 
-> **(ADR-013, 2026-10-03) `source_type`/`target_type` 대칭성 보강**: 이 표는 `source_type`에도 `TEST_CASE`를 CHECK 값으로 적어왔지만, 실제 `V1__init.sql`의 `chk_traceability_links_source_type` 제약은 지금까지 `('REQUIREMENT','ISSUE')`만 허용해 테스트케이스를 **출발점(source)**으로 하는 링크를 만들 수 없었다(문서와 실제 스키마 간 드리프트). ADR-013은 PRD/SRS/Defect/TestCase 네 작업 항목 유형이 "서로 자유롭게 추적성 연결"되어야 한다는 요구사항을 충족하기 위해, 신규 마이그레이션으로 `chk_traceability_links_source_type`을 `('REQUIREMENT','ISSUE','TEST_CASE')`로 넓혀 이 표의 서술과 실제 제약을 일치시킨다. 새 `TargetType` 값을 추가하는 것이 아니라 기존 세 값의 source/target 허용 범위를 대칭으로 맞추는 것뿐이므로 `PolymorphicTargetValidator`(ADR-010)는 변경되지 않는다.
+> **(ADR-013, 2026-10-03 — 2026-10-04 정정) `source_type`/`target_type` 대칭성 — 실제로는 이미 Phase 12부터 대칭이었다**: ADR-013은 원래 "`source_type`은 지금까지 `REQUIREMENT`/`ISSUE`만 허용해 테스트케이스를 출발점으로 하는 링크를 만들 수 없었다"고 전제하고 이를 바로잡는 신규 마이그레이션을 설계했으나, 이는 **`V1__init.sql`만 조사하고 그 뒤에 적용된 `V3__test_cases.sql`(Phase 12, 2026-08-04, 63~65행)을 놓친 조사 오류였다.** 실제로는 `V3__test_cases.sql`이 이미 `chk_traceability_links_source_type`을 `('REQUIREMENT','ISSUE','TEST_CASE')`로 넓혀뒀고, 바로 위 표의 `source_type` 행과 이 섹션 맨 위 "`source_type`/`target_type`은 `REQUIREMENT`, `ISSUE`, `TEST_CASE`만 허용"이라는 서술은 ADR-013 이전부터 **이미 정확했다.** ADR-013 구현 과정에서 만들어진 `V12__widen_traceability_links_source_type.sql`은 동일한 제약을 다시 적용하는 **no-op**이었다(해롭지는 않음). 상세 정정 내용은 `ADR-013` 본문의 2026-10-04 정정 각주 참고. 새 `TargetType` 값을 추가한 적은 원래도 없었다 — `PolymorphicTargetValidator`(ADR-010)는 이 건과 무관하게 변경되지 않는다.
 
 ### 3.7 `comments`
 | 컬럼 | 타입 | 제약 |
@@ -421,9 +421,9 @@ User 1---N DashboardWidgetConfig (optional FK: project_id)
 
 ---
 
-## v4 확장 (2026-10-03, 01-scope.md §1.2 v4 항목, 아직 미구현 — ADR-011·ADR-012)
+## v4 확장 (2026-10-03~05, 01-scope.md §1.2 v4 항목, 아직 미구현 — ADR-011·ADR-012·ADR-014)
 
-> 아래 §3.25~§3.29는 ADR-011(회원가입+라이센스 관리)·ADR-012(프로젝트 Configuration 영역)에서 설계가 확정된 내용을 그대로 옮긴 것이다. 두 ADR 본문의 §2.3("업로드→파싱→저장→적용" 흐름)·§A~§D(커스텀 필드/폼 레이아웃/열거형/워크플로우) 서술이 각 테이블의 1차 근거다.
+> 아래 §3.25~§3.29는 ADR-011(회원가입+라이센스 관리)·ADR-012(프로젝트 Configuration 영역)에서 설계가 확정된 내용을 그대로 옮긴 것이다. §3.30은 ADR-014(시스템 테마 설정)에서 확정된 내용이다. 두 ADR 본문의 §2.3("업로드→파싱→저장→적용" 흐름)·§A~§D(커스텀 필드/폼 레이아웃/열거형/워크플로우) 서술이 각 테이블의 1차 근거이며, §3.30은 ADR-014 §2~§3이 근거다.
 
 ### 3.25 `licenses` (ADR-011)
 | 컬럼 | 타입 | 제약 |
@@ -573,6 +573,22 @@ UNIQUE (project_id, target_type, from_status, to_status)
 
 > **적용 규칙(보수적 기본값)**: 프로젝트가 특정 target_type에 규칙을 하나도 등록하지 않으면 기존과 동일하게 모든 상태 간 자유 전이(하위 호환). 하나 이상 등록하면 그 프로젝트의 그 target_type은 화이트리스트 모드로 전환되어 등록된 (from,to) 조합만 허용한다. 기존 승인 게이트(§3.17 `approval_requests`, `DRAFT→APPROVED`)와는 AND 조건으로 공존한다. 시스템 `ADMIN`과 해당 프로젝트의 `PROJECT_ADMIN`은 화이트리스트와 무관하게 항상 모든 전이가 허용된다(lock-out 방지, ADR-011의 라이센스 ADMIN 로그인 예외와 동일한 설계 사유).
 
+### 3.30 `system_theme_settings` (ADR-014)
+시스템 전역 색상 템플릿(브랜드 컬러 프리셋) 설정. **항상 정확히 1행만 존재하는 단일 행 테이블**이다 — 프로젝트별 설정이 아니므로 `project_id` 컬럼이 없다(라이트/다크 모드는 서버에 저장하지 않음, ADR-014 §1 참고 — 개인 브라우저 `localStorage` 선호로만 처리하고 이 테이블에는 컬럼 자체가 없다).
+
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| id | BIGINT | PK, `DEFAULT 1`, `CHECK (id = 1)` — PK 유니크 제약과 이 체크로 행이 항상 0개 또는 1개임을 DB 레벨에서 강제(licenses의 "ACTIVE 1건" 부분 유니크 인덱스와 다른, 처음부터 단일 행 전용인 더 단순한 패턴) |
+| color_preset | VARCHAR(20) | NOT NULL, `DEFAULT 'DEFAULT'`, CHECK IN ('DEFAULT','RED','BLUE','GREEN','PURPLE') |
+| updated_by | BIGINT | FK → users.id, ON DELETE SET NULL |
+| updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+각 `color_preset` 값이 실제로 가리키는 색상 토큰 4종(`primary`/`primary-hover`/`primary-focus`/`brand-secure`)의 구체적인 hex 값은 DB에 저장하지 않고 프론트엔드 `index.css`에 코드로 고정한다(ADR-014 §2·§5.1 참고) — 이 테이블은 "지금 어떤 프리셋이 선택돼 있는가"라는 상태값 하나만 책임진다.
+
+마이그레이션 시드: 이 테이블이 생성되는 즉시 `id=1, color_preset='DEFAULT'` 행을 1건 넣어, 기능 배포 직후에도 조회 API가 항상 유효한 응답을 반환하고 기존 운영 화면 색상이 바뀌지 않도록 한다(하위 호환성, ADR-002/006의 idempotent 마이그레이션 원칙과 함께 적용).
+
+> `audit_logs` 연동은 하지 않는다(ADR-014 §4 — 단일 설정의 현재값 변경이 `AuditTargetType`에 추가할 만큼 중요한 변경 이력은 아니라고 판단, 필요해지면 별도 ADR). `updated_by`/`updated_at`은 "마지막으로 누가 바꿨는지"만 보여주는 최소 추적 정보다.
+
 ### ERD 요약 추가분 (v4)
 ```
 License (단독 테이블, project_id 없음 — 시스템 전역 1건의 ACTIVE)
@@ -580,4 +596,5 @@ Project 1---N CustomFieldDefinition 1---N CustomFieldValue (target = Requirement
 Project 1---N FormLayout(target_type당 1개) 1---N FormLayoutSection 1---N FormLayoutField (optional FK: custom_field_id)
 Project 1---N ProjectEnumerationSet 1---N ProjectEnumerationValue
 Project 1---N WorkflowTransitionRule (target = Requirement|Issue)
+SystemThemeSettings (단독 테이블, project_id 없음 — 시스템 전역 1행 고정, PK=1)
 ```

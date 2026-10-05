@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-03
+> Owner: architect | Status: current | Last-reviewed: 2026-10-05
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 4. REST API 명세
@@ -289,7 +289,7 @@
 
 ---
 
-## v4 확장 API (2026-10-03, 03-data-model.md §3.25~3.29 참고, 아직 미구현 — ADR-011·ADR-012)
+## v4 확장 API (2026-10-03~05, 03-data-model.md §3.25~3.30 참고, 아직 미구현 — ADR-011·ADR-012·ADR-014)
 
 ### 4.22 회원가입 (Self-Signup)
 | Method | Path | 설명 | 권한 |
@@ -354,5 +354,14 @@
 | POST | `/api/projects/{projectId}/config/workflow-rules` | 규칙 추가 `{targetType,fromStatus,toStatus,allowedRole?}` | PROJECT_ADMIN+ |
 | DELETE | `/api/projects/{projectId}/config/workflow-rules/{ruleId}` | 규칙 삭제(전부 삭제 시 해당 target_type은 자유 전이 모드로 복귀) | PROJECT_ADMIN+ |
 | GET | `/api/projects/{projectId}/workflow-rules/{targetType}/{fromStatus}` | 특정 상태에서 전이 가능한 다음 상태 목록("상태 변경" 드롭다운 구성용) | VIEWER+ |
+
+### 4.28 시스템 테마 설정 (Theme) — ADR-014
+| Method | Path | 설명 | 권한 |
+|---|---|---|---|
+| GET | `/api/public/theme` | `{ colorPreset: "RED" }` — 색상 프리셋 코드만 반환(민감 정보 없음). 앱 부트스트랩이 비인증 상태로 호출 — `/login`·`/signup` 화면에도 동일하게 적용됨 | 공개 |
+| GET | `/api/admin/theme-settings` | 현재 설정 상세(`colorPreset`,`updatedBy`,`updatedAt`) + 선택 가능한 프리셋 전체 목록(코드/라벨/대표 색상 — 관리자 화면 스와치 미리보기용) | ADMIN |
+| PUT | `/api/admin/theme-settings` | 본문 `{ "colorPreset": "BLUE" }` — 프리셋 변경. `DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE` 외 값은 `400 VALIDATION_ERROR` | ADMIN |
+
+라이트/다크 모드는 서버 API가 없다 — 클라이언트 전용(`localStorage`, 05-frontend.md §5.3·§5.23 참고). 변경 이력 조회 API는 두지 않는다(단일 설정의 현재값만 의미가 있음 — 과설계 방지, ADR-014 §4). 조회 행이 없는 극단 상황(마이그레이션 시드 실패 등)에서는 `GET /api/public/theme`이 500 대신 `DEFAULT`로 폴백한다(로그인 화면 자체가 깨지는 것을 방지).
 
 기존 `PATCH .../requirements/{reqId}/status`·`PATCH .../issues/{issueId}/status`(§4.5·§4.6)는 변경되지 않지만, 내부적으로 `WorkflowTransitionPolicy.requireAllowedTransition(...)` 훅이 추가된다. 화이트리스트 모드가 아닌 프로젝트(규칙 미등록)는 기존과 동일하게 동작한다(하위 호환).

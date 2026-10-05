@@ -1,4 +1,4 @@
-> Owner: architect · 구현은 frontend-developer | Status: current | Last-reviewed: 2026-10-03
+> Owner: architect · 구현은 frontend-developer | Status: current | Last-reviewed: 2026-10-05
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 5. 프론트엔드 주요 화면 단위
@@ -19,6 +19,7 @@
 | `/projects/:projectId/settings` | 프로젝트 설정(멤버, GitHub/Jenkins 연동) | 인증필요(PROJECT_ADMIN+) |
 | `/admin/users` | 사용자 관리 | 인증필요(ADMIN) |
 | `/admin/licenses` | 라이센스 관리(신규, §5.17) | 인증필요(ADMIN) |
+| `/admin/theme` | 테마 설정(신규, §5.23) | 인증필요(ADMIN) |
 | `/my-tasks` | 개인화된 대시보드 — 전체 프로젝트에 걸쳐 내게 할당된 이슈/요구사항 모아보기(신규: 마감 임박/기한 초과 포함, 04-api.md §4.11) | 인증필요 |
 | `/projects/:projectId/test-cases` | 테스트케이스 목록(§5.6) | 인증필요 |
 | `/projects/:projectId/test-cases/:tcId` | 테스트케이스 상세(§5.6) | 인증필요 |
@@ -103,7 +104,7 @@
 
 최초 설계는 인증 필요 라우트 전체(`/`, `/projects/**`, `/admin/users`, `/my-tasks`)를 감싸는 **단일** `AppLayout` 컴포넌트를 상정했지만, 실제 구현은 **레이아웃을 두 개로 분리**했다(기능적으로는 동등하다).
 
-- **`TopNavbar`** (`/`, `/my-tasks`, `/admin/users`, `/admin/licenses`에서 사용): 좌측 "Light ALM" 로고(클릭 시 `/`로 이동, 홈 버튼 역할) + "내 작업"(`/my-tasks`) 링크 + "사용자 관리"(`/admin/users`, 시스템 `ADMIN`에게만 조건부 노출) 링크 + **"라이센스 관리"(`/admin/licenses`, 시스템 `ADMIN`에게만 조건부 노출, 신규 §5.17)** 링크. 우측에 로그인한 사용자명과 로그아웃 버튼. **별도의 "프로젝트 목록" 텍스트 링크는 없고, 로고 클릭이 그 역할을 겸한다**(최초 설계는 로고와 별개로 "① 프로젝트 목록" 링크도 두는 안이었으나 실제로는 로고 하나로 통합).
+- **`TopNavbar`** (`/`, `/my-tasks`, `/admin/users`, `/admin/licenses`, `/admin/theme`에서 사용): 좌측 "Light ALM" 로고(클릭 시 `/`로 이동, 홈 버튼 역할) + "내 작업"(`/my-tasks`) 링크 + "사용자 관리"(`/admin/users`, 시스템 `ADMIN`에게만 조건부 노출) 링크 + "라이센스 관리"(`/admin/licenses`, 시스템 `ADMIN`에게만 조건부 노출, §5.17) 링크 + **"테마 설정"(`/admin/theme`, 시스템 `ADMIN`에게만 조건부 노출, 신규 §5.23, ADR-014)** 링크. 우측에 **라이트/다크 모드 토글 버튼(신규, ADR-014 — 모든 사용자에게 노출, ADMIN 제한 없음. 클릭 시 네트워크 호출 없이 즉시 `<html data-color-mode>` 속성과 `localStorage`만 갱신하는 개인 선호 설정)**, 로그인한 사용자명, 로그아웃 버튼. **별도의 "프로젝트 목록" 텍스트 링크는 없고, 로고 클릭이 그 역할을 겸한다**(최초 설계는 로고와 별개로 "① 프로젝트 목록" 링크도 두는 안이었으나 실제로는 로고 하나로 통합).
 - **`ProjectLayout`** (`/projects/:projectId/**`에서 사용): 좌측 사이드바 최상단에 "← 프로젝트 목록" 링크(클릭 시 `/`) + 현재 프로젝트명/키, 그 아래 대시보드/요구사항/이슈/추적성/설정 내비게이션, 하단에 사용자명/로그아웃. 이 부분은 최초 설계와 동일하게 구현됨. **(신규, ADR-013, 2026-10-03)** "요구사항" 링크와 "이슈" 링크 사이에 `WorkItemTreePanel`(§5.22) 컴포넌트를 삽입한다 — 별도 패널이 아니라 기존 `<nav>` 안에 끼워 넣는 아코디언 섹션이다.
 - **세션 복원 및 새로고침 대응**: `AuthContext`(`frontend/src/auth/AuthContext.tsx`)는 마운트 시 `loading` state를 `true`로 시작하고 `GET /api/auth/me`를 호출, 응답(성공/실패 모두) 후 `loading`을 `false`로 내린다. `ProtectedRoute`/`GuestOnlyRoute`는 `loading === true`인 동안 전체 화면 로딩 인디케이터만 보여주고, 완료 후에만 인증 여부에 따라 원래 경로 렌더링 또는 `/login` 리다이렉트를 수행한다 — **이 부분은 최초 설계대로 정확히 구현되어 있고 실제로 문제가 없었다.**
 - 다만 세션 확인 요청이 네트워크 오류로 실패한 경우 "다시 시도" 버튼이 있는 에러 화면을 보여주는 것은 **미구현**이다(현재는 실패 시 조용히 `user = null` 처리하여 `/login`으로 보냄).
@@ -240,3 +241,26 @@ ADR-013 참고. 전역 탐색기가 아니라 **현재 진입한 프로젝트 �
 - **유형별 바로 생성 버튼**: 1차 구현에서는 생략한다 — 기존 "새 요구사항" 생성 폼(§5.2)에 추가된 `requirementLevel` 선택 필드로 PRD/SRS 생성을 충분히 커버한다(과설계 방지).
 - **상호 추적성**: PRD/SRS/Defect/TestCase 네 유형 간 연결은 이 패널에서 직접 만들지 않고, 각 상세 화면에 이미 있는 "이슈 연결"/추적성 링크 UI(§5.2, §4.7)를 그대로 쓴다. `traceability_links.source_type` CHECK 제약이 `TEST_CASE`까지 허용하도록 넓어져서(03-data-model.md §3.6, ADR-013) 테스트케이스를 출발점으로 하는 연결(예: "이 테스트케이스가 이 결함을 발견함")도 이제 가능하다.
 → 04-api.md §4.5, 03-data-model.md §3.4·§3.6
+
+---
+
+## v4 확장 화면 추가 (2026-10-05, 아직 미구현 — ADR-014)
+
+### 5.23 `/admin/theme` — 테마 설정 화면 + `TopNavbar` 라이트/다크 토글
+
+ADR-014 참고. 두 개의 독립된 UI가 이 절에 함께 묶여 있다 — 하나는 ADMIN 전용 관리자 화면(조직 설정), 다른 하나는 모든 사용자가 쓰는 토글(개인 설정)이다.
+
+**관리자 화면 `/admin/theme` (ADMIN 전용)**
+- 보호 패턴은 기존 `/admin/users`·`/admin/licenses`와 동일: `AdminRoute`로 감싸고, `TopNavbar`에 ADMIN에게만 조건부 노출(§5.3).
+- `GET /api/admin/theme-settings`(04-api.md §4.28)로 현재 설정 + 선택 가능한 프리셋 전체 목록을 받아, **5개 색상 스와치 카드**(`DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE`)를 나열한다. 현재 선택된 프리셋은 테두리 강조로 표시.
+- 스와치 선택 → "저장" 버튼 → `PUT /api/admin/theme-settings` 호출. 성공 시 화면 새로고침 없이 전역 `ThemeProvider` 상태를 갱신해 `TopNavbar`를 포함한 현재 세션의 색상이 즉시 바뀐다. "마지막 변경: {fullName}, {updatedAt}" 보조 텍스트를 함께 표시.
+- 허용되지 않은 값 응답(`400 VALIDATION_ERROR`)은 폼 상단에 에러 메시지로 표시.
+
+**`TopNavbar` 라이트/다크 토글 (전체 사용자)**
+- §5.3에 서술된 토글 버튼. ADMIN 제한이 없다 — 라이트/다크는 개인 선호이기 때문(ADR-014 §1 트레이드오프 판단).
+- 서버 API를 호출하지 않는다. 클릭 시 `document.documentElement.dataset.colorMode`와 `localStorage`(`lightalm:colorMode`)만 즉시 갱신. 최초 진입 시 `localStorage` 값이 없으면 `window.matchMedia('(prefers-color-scheme: dark)')`로 OS 선호를 기본값으로 사용한다.
+- **알려진 제약(의도적 범위 제한, ADR-014 §1)**: 다크 모드 토큰(표면/텍스트/보더 계열)은 이번 범위에서 `TopNavbar`와 `/admin/theme` 화면에만 적용된다. 기존 27개 화면(요구사항/이슈/테스트케이스 목록 등)은 Tailwind 기본 색상 클래스를 직접 하드코딩하고 있어, 토글을 켜도 해당 화면들은 라이트 모드 색상이 그대로 보인다. 전체 화면 리트로핏은 이 ADR의 범위 밖이며 필요해지면 별도 ADR/Phase로 다룬다.
+
+**부트스트랩(색상 프리셋만 — 라이트/다크와는 무관)**
+- 앱 루트 렌더링 전에 `localStorage`에 캐시된 색상 프리셋을 동기적으로 `data-theme-color` 속성에 적용(깜빡임 방지) → 마운트 후 `GET /api/public/theme`(04-api.md §4.28, 공개)을 호출해 실제 값과 다르면 갱신. 이 호출은 비인증 상태에서도 항상 성공하므로 `/login`·`/signup` 화면도 앱 루트 안에 있어 별도 처리 없이 동일하게 적용된다.
+→ 04-api.md §4.28, 03-data-model.md §3.30

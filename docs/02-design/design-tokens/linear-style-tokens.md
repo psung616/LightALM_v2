@@ -1,5 +1,6 @@
-> Owner: frontend-developer | Status: reference | Last-reviewed: 2026-08-08
+> Owner: frontend-developer | Status: reference | Last-reviewed: 2026-10-05
 > 이 문서는 SPEC.md 문서 체계(§0~§11)에 속하지 않는 **참고용 디자인 토큰 파일**이다. Linear 앱 스타일(다크 테마, 라벤더 블루 액센트)의 색상/타이포그래피 토큰을 정의하며, 05-frontend.md의 화면 구현 시 참고 자료로 사용한다. SPEC.md의 공식 문서 목록에는 포함하지 않는다.
+> **[2026-10-05 각주, ADR-014]** 이 문서가 정의하는 라벤더-블루 팔레트는 ADR-014(시스템 테마 설정) 이후 **"DEFAULT/RED/BLUE/GREEN/PURPLE 5개 색상 프리셋 중 `DEFAULT` 하나"**로 재해석된다. 이 문서 자체는 수정하지 않고 `DEFAULT` 프리셋의 근거 자료로 남긴다 — 나머지 4개 프리셋(RED/BLUE/GREEN/PURPLE)의 색상값은 이 문서가 아니라 `03-data-model.md` §3.30·`04-api.md` §4.28·ADR-014 본문 §2를 따른다.
 
 ---
 version: alpha
