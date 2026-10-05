@@ -71,7 +71,7 @@ public class SecurityConfig {
                         .ignoringRequestMatchers("/api/webhooks/**"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/public/license-status", "/api/webhooks/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/public/license-status", "/api/public/theme", "/api/webhooks/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(new CsrfCookieEnsureFilter(), CsrfFilter.class)

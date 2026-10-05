@@ -2,15 +2,66 @@
 
 /* Linear (linear.app) DESIGN.md 기반 팔레트/타이포 토큰 — docs/design/DESIGN-linear.app.md 참고.
    원본은 다크 마케팅 캔버스 기준이라, 우리 앱은 라이트 서피스는 유지하고
-   시그니처 라벤더-블루(#5e6ad2)를 유일한 브랜드 액센트로만 적용한다. */
+   시그니처 라벤더-블루(#5e6ad2)를 유일한 브랜드 액센트로만 적용한다.
+   (ADR-014 이후: 이 팔레트는 5개 색상 프리셋 중 DEFAULT의 근거 자료로 재해석된다.) */
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
+  /* 색상 프리셋(ADR-014 §2) — 아래 4개는 DEFAULT 프리셋 값이며 기존 값과 100% 동일하다
+     (하위 호환성: ADMIN이 명시적으로 변경하기 전까지 기존 운영 화면은 그대로 유지된다). */
   --color-primary: #5e6ad2;
   --color-primary-hover: #828fff;
   --color-primary-focus: #5e69d1;
   --color-brand-secure: #7a7fad;
+
+  /* 표면(surface) 계열 토큰(ADR-014 §1/§5.1, 라이트 모드 기본값). 범위를 TopNavbar와
+     /admin/theme 화면으로 한정했으므로, 이 토큰들을 쓰는 곳도 우선 그 범위로 한정된다 —
+     기존 27개 화면은 Tailwind 기본 색상 클래스를 그대로 쓰고 있어 다크모드가 적용되지
+     않는다(알려진 제약, 전면 리트로핏은 별도 ADR/Phase 범위). */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-border: #e2e8f0;
+}
+
+/* 색상 프리셋 — DEFAULT는 위 @theme 기본값을 그대로 쓰므로 별도 선택자가 없다. */
+:root[data-theme-color="red"] {
+  --color-primary: #dc2626;
+  --color-primary-hover: #ef4444;
+  --color-primary-focus: #b91c1c;
+  --color-brand-secure: #a85c5c;
+}
+
+:root[data-theme-color="blue"] {
+  --color-primary: #2563eb;
+  --color-primary-hover: #3b82f6;
+  --color-primary-focus: #1d4ed8;
+  --color-brand-secure: #5c76a8;
+}
+
+:root[data-theme-color="green"] {
+  --color-primary: #16a34a;
+  --color-primary-hover: #22c55e;
+  --color-primary-focus: #15803d;
+  --color-brand-secure: #5c9170;
+}
+
+:root[data-theme-color="purple"] {
+  --color-primary: #7c3aed;
+  --color-primary-hover: #a78bfa;
+  --color-primary-focus: #6d28d9;
+  --color-brand-secure: #8a7aa8;
+}
+
+/* 라이트/다크 모드(ADR-014 §1, 개인 선호 — localStorage만 사용, 서버 저장 안 함). */
+:root[data-color-mode="dark"] {
+  --color-surface: #111827;
+  --color-surface-muted: #1f2937;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
 }
 
 body {

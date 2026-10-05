@@ -16,6 +16,7 @@ import { TraceabilityPage } from './pages/Traceability/TraceabilityPage';
 import { ProjectSettingsPage } from './pages/ProjectSettings/ProjectSettingsPage';
 import { AdminUsersPage } from './pages/AdminUsers/AdminUsersPage';
 import { AdminLicensesPage } from './pages/AdminLicenses/AdminLicensesPage';
+import { AdminThemePage } from './pages/AdminTheme/AdminThemePage';
 import { MyTasksPage } from './pages/MyTasks/MyTasksPage';
 import { TestCaseListPage } from './pages/TestCaseList/TestCaseListPage';
 import { TestCaseDetailPage } from './pages/TestCaseDetail/TestCaseDetailPage';
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/admin/users', element: <AdminUsersPage /> },
               { path: '/admin/licenses', element: <AdminLicensesPage /> },
+              { path: '/admin/theme', element: <AdminThemePage /> },
             ],
           },
         ],
