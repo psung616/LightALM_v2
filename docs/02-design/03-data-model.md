@@ -325,6 +325,8 @@ UNIQUE (release_id, target_type, target_id)
 UNIQUE (review_cycle_id, user_id)
 
 > **범용 워크플로우 엔진이 아님을 명시**: review_participants의 decision은 기록·표시 용도이며, 서비스 레이어가 이 값을 근거로 target(요구사항/이슈)의 status를 자동으로 바꾸는 로직은 만들지 않는다(01-scope.md §1.3 원칙 유지). 상태를 바꾸려면 여전히 기존 `PATCH .../status`(또는 승인 워크플로우 §3.17)를 사용자가 직접 호출해야 한다.
+>
+> **[2026-10-05 구현 각주 — Phase 16]** 이 원칙은 구조적으로도 보장한다: `ReviewCycleCommandService`·`ReviewCycleQueryService`는 요구사항/이슈/승인/워크플로우 관련 Repository·Service를 의존성으로 아예 갖지 않으며, 단위 테스트 `ReviewCycleCommandServiceTest.reviewServices_haveNoDependencyCapableOfChangingTargetStatus`가 이를 검사한다(누군가 "전원 승인 시 자동 전이"를 추가하려고 의존성을 주입하면 테스트가 깨진다). 로컬 Postgres 실측에서도 참여자 전원 APPROVE + 사이클 CLOSED 후 대상 요구사항의 `status`(DRAFT)와 `updated_at`이 그대로임을 확인했다.
 
 ### 3.20 `baselines`
 | 컬럼 | 타입 | 제약 |
@@ -351,6 +353,13 @@ UNIQUE (review_cycle_id, user_id)
 UNIQUE (baseline_id, target_type, target_id)
 
 > **비교(diff) 기능**: 별도 테이블 없이, 조회 시점에 baseline_items.snapshot과 원본 테이블의 현재 값을 서비스 레이어에서 필드 단위로 비교해 변경분을 계산해서 반환한다(04-api.md §4.18).
+
+> **[2026-10-05 구현 각주 — Phase 16, §3.18~3.21 공통]** 네 테이블은 마이그레이션 **`V18__create_review_and_baseline_tables.sql`** 하나로 생성했다(컬럼/제약은 위 표와 1:1 일치, 추가 인덱스: `idx_review_cycles_target(project_id,target_type,target_id)`, `idx_review_participants_cycle`, `idx_baselines_project`, `idx_baseline_items_baseline`). 엔티티/서비스는 `com.lightalm.review`(ReviewCycle·ReviewParticipant), `com.lightalm.baseline`(Baseline·BaselineItem) 패키지.
+> - `target_id`는 다른 다형 연관(§3.13 등)과 마찬가지로 FK가 없다. 대상 요구사항/이슈가 삭제돼도 `review_cycles` 행은 남지만, 목록 API가 대상 존재를 먼저 검증(404)하므로 조회 경로로는 드러나지 않는다. `baseline_items`는 의도적으로 남겨 diff에서 "대상 삭제됨"으로 보여준다.
+> - **snapshot 필드 집합**(`BaselineSnapshotFactory` — 생성 시 캡처와 diff 시 현재 값 조회에 같은 코드를 재사용): REQUIREMENT = `key`(req_key), `title`, `description`, `type`, `priority`, `status`, `requirementLevel`, `assignedToId`, `dueDate` / ISSUE = `key`(issue_key), `title`, `description`, `type`, `priority`, `status`, `assigneeId`, `dueDate` / TEST_CASE = `key`(tc_key), `title`, `description`, `preconditions`, `steps`, `expectedResult`, `priority`, `status`. `key`는 원본에서 바뀌지 않지만 대상이 삭제된 뒤에도 diff 화면에서 식별할 수 있도록 넣었다(설계 원문 "title/description/status/priority 등"의 구체화). 커스텀 필드 값(§3.26)은 스냅샷에 포함하지 않는다.
+> - JPA 매핑: `BaselineItem.snapshot`은 Java `String` + `@JdbcTypeCode(SqlTypes.JSON)`(Hibernate 6 네이티브, 추가 라이브러리 없음). 로컬 Postgres에서 `jsonb_typeof(snapshot) = 'object'`로 저장됨을 확인했다(문자열 리터럴로 이중 인코딩되지 않음).
+> - diff 비교는 스냅샷과 현재 값 양쪽을 같은 ObjectMapper로 JSON 텍스트 → `JsonNode`로 맞춘 뒤 필드별 `equals`로 한다(Long/Integer 같은 숫자 타입 차이가 "변경"으로 잡히지 않게). JSON `null`과 필드 부재는 같은 "값 없음"으로 취급한다. jsonb는 키 순서를 보존하지 않으므로 표시 순서는 현재 값(팩토리 정의 순서) 기준이다.
+> - `review_cycles`/`baselines` 생성·변경은 `audit_logs`(§3.16)에 기록하지 않는다 — §3.16의 `target_type` CHECK에 해당 값이 없고, 설계 문서 어디에도 감사 로그 연동 요구가 없기 때문이다(추가하려면 CHECK 확장 마이그레이션 + ADR 필요).
 
 ### 3.22 `risks`
 | 컬럼 | 타입 | 제약 |
@@ -537,6 +546,8 @@ CHECK: `(field_source='STANDARD' AND standard_field_key IS NOT NULL AND custom_f
 UNIQUE (project_id, enum_key)
 
 > **서비스 레이어 제약(DB 제약 아님)**: `base_enum IN ('REQUIREMENT_STATUS','ISSUE_STATUS','TEST_CASE_STATUS')`인 집합의 생성은 현재 `EnumerationSetService`가 거부한다 — 상태(Status) 값 자체의 확장은 이번 범위에서 제외(ADR-012 §C.1, `01-scope.md` §1.3 v4 비스코프 참고). `base_enum='PRIORITY'`와 `base_enum=NULL`만 생성 가능.
+>
+> **[2026-10-05 qa-tester 반려 수정]** `enum_key='PRIORITY'` ⇔ `base_enum='PRIORITY'`를 생성 시점에 강제한다(어긋나면 400) — validator는 enum_key로 집합을 찾고 기본값 시드는 base_enum=PRIORITY일 때만 해서, 어긋난 집합(값 0개)이 프로젝트의 모든 priority 쓰기를 막던 버그 수정. 또한 수정(update) 경로는 priority 값이 기존과 같으면 ACTIVE 검증을 생략한다(`EnumerationValueValidator.requireValidValueForChange`) — 폐기된 값을 가진 항목의 다른 필드 수정이 막히던 버그 수정. 상세는 ADR-012 §C 각주.
 
 **`project_enumeration_values`**
 | 컬럼 | 타입 | 제약 |

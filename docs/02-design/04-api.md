@@ -18,6 +18,7 @@
   "path": "/api/projects/1/requirements"
 }
 ```
+  - **[2026-10-05 구현 각주]** 요청 본문을 DTO로 읽지 못하는 경우(본문 누락, JSON 문법 오류, enum에 없는 값 — 예: `targetType:"FOO"`·소문자 `"requirement"`·`decision:"FOO"`)와 경로 변수/쿼리 파라미터 타입 변환 실패(예: `/baselines/abc`), 필수 쿼리 파라미터 누락도 `400 VALIDATION_ERROR`로 응답한다(`GlobalExceptionHandler`의 `HttpMessageNotReadableException`·`MethodArgumentTypeMismatchException`·`MissingServletRequestParameterException` 핸들러). enum 값 오류는 `message`에 필드 경로와 허용값을 담는다(예: `"itemRefs[0].targetType: 허용되지 않는 값입니다(FOO). 허용값: REQUIREMENT, ISSUE, TEST_CASE"`). 이전에는 전역 catch-all로 떨어져 500이었다(qa-tester Phase 16 반려).
 - 페이지네이션(목록 API 공통 쿼리 파라미터): `page`(0-base, default 0), `size`(default 20), `sort`(예: `createdAt,desc`)
 - 목록 응답 공통 포맷:
 ```json
@@ -254,6 +255,24 @@
 | GET | `/api/projects/{projectId}/baselines/{baselineId}` | 상세(포함 항목 스냅샷 목록) | VIEWER+ |
 | GET | `/api/projects/{projectId}/baselines/{baselineId}/diff` | 스냅샷 vs 현재 값 필드 단위 비교 결과 반환 | VIEWER+ |
 
+> **[2026-10-05 구현 각주 — Phase 16, §4.17]** 컨트롤러 `com.lightalm.review.api.ReviewCycleController`, 서비스 `ReviewCycleCommandService`(생성/결정/닫기) · `ReviewCycleQueryService`(목록) — docs/CLAUDE.md 신규 코드 규칙(Command/Query 분리, 요청 DTO는 record)을 따른다. 위 표에 없던 동작을 구현 중 다음과 같이 확정했다.
+> - `{targetType}` 경로 세그먼트는 `requirements` 또는 `issues`만 허용(그 외 `test-cases` 등은 400 `VALIDATION_ERROR`). 대상 존재/프로젝트 소속은 `PolymorphicTargetValidator`로 검증(404).
+> - 응답 `ReviewCycleDetailResponse`(단건 조회 API가 없고 목록도 참여자 현황을 포함해야 하므로 목록 원소·생성·결정·닫기 응답이 모두 이 Detail 형태 — 별도 Summary DTO 없음): `{id, targetType, targetId, name, status, createdById, createdByName, createdAt, closedAt, participants:[{id, userId, username, fullName, decision, comment, decidedAt}]}`. POST·GET 목록(배열, `createdAt` 내림차순)·두 PATCH 모두 이 모양으로 응답한다.
+> - 생성: `name` 필수(최대 150), `participantUserIds` 최소 1명(중복 ID는 1명으로 합침). 존재하지 않는 사용자 ID → 400. **프로젝트 멤버가 아닌 사용자(시스템 ADMIN 제외)를 참여자로 지정하면 400** — 비멤버는 결정 기록 API의 프로젝트 접근 검사(VIEWER+)를 통과하지 못해 영원히 PENDING으로 남기 때문에 생성 시점에 막는다(설계 표에 없던 입력 검증).
+> - 결정 기록(`participants/me`): body `{decision: 'APPROVE'|'REJECT'|'COMMENT_ONLY', comment?}`. 참여자가 아니면 **역할과 무관하게 403**(PROJECT_ADMIN·시스템 ADMIN 포함). `decision: 'PENDING'` → 400. **CLOSED 사이클에 기록 → 400**. 재기록은 덮어쓰기(마지막 값 유지).
+> - 닫기(`status`): 요청 body는 받지 않는다(무시됨 — 항상 CLOSED로만 전이, 재오픈 API 없음). 이미 CLOSED → 400. 대상 status는 변경하지 않는다.
+> - 감사 로그(§4.15)에는 기록하지 않는다(03-data-model.md §3.21 구현 각주 참고).
+>
+> **[2026-10-05 구현 각주 — Phase 16, §4.18]** 컨트롤러 `com.lightalm.baseline.api.BaselineController`, 서비스 `BaselineCommandService`(생성) · `BaselineQueryService`(목록·상세) · `BaselineDiffService`(diff, 11-structure-migration-plan.md §2 목표 구조의 클래스명), 공용 컴포넌트 `BaselineSnapshotFactory`(현재 값 추출) · `BaselineSnapshotJsonCodec`(스냅샷 JSON 변환).
+> - 생성 요청: `{name(필수, 최대 150), description?, itemRefs:[{targetType:'REQUIREMENT'|'ISSUE'|'TEST_CASE', targetId}](최소 1개)}`. 같은 `(targetType,targetId)` 중복은 1건으로 합친다(UNIQUE 위반 500 방지). 대상이 없거나 다른 프로젝트 소속이면 404이고 베이스라인 자체가 저장되지 않는다(전체 롤백).
+> - POST(201)·GET 상세 응답 `BaselineDetailResponse`: `{id, name, description, createdById, createdByName, createdAt, items:[{id, targetType, targetId, snapshot:{필드:값}, capturedAt}]}`. `snapshot` 필드 집합은 03-data-model.md §3.21 구현 각주 참고.
+> - GET 목록 응답: `[{id, name, description, createdById, createdByName, createdAt, itemCount}]`(`createdAt` 내림차순).
+> - GET diff 응답 `BaselineDiffResponse`: `{baselineId, baselineName, baselineCreatedAt, comparedAt, unchangedCount, modifiedCount, deletedCount, items:[{targetType, targetId, key, title, changeType, changes:[{field, changeKind, before, after}]}]}`.
+>   - `changeType`: `UNCHANGED`(모든 필드 동일, `changes` 빈 배열) / `MODIFIED`(값이 다른 필드가 1개 이상) / `DELETED`(대상이 삭제됐거나 더 이상 이 프로젝트 소속이 아님 — 스냅샷에서 값이 있던 모든 필드가 `REMOVED`로 나열됨).
+>   - `changeKind`: `ADDED`(스냅샷엔 없음/null → 현재 값 있음) / `REMOVED`(값 있음 → 현재 없음/null) / `MODIFIED`(다른 값으로 변경). `before`/`after`는 JSON 값(문자열·숫자·null).
+>   - `key`/`title`은 대상이 남아 있으면 현재 값, `DELETED`면 스냅샷 값.
+> - diff는 저장하지 않고 호출할 때마다 다시 계산한다. 이 API들도 대상 엔티티를 변경하지 않는다(읽기 전용).
+
 ### 4.19 위험 관리 (Risk)
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
@@ -341,7 +360,7 @@
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/projects/{projectId}/config/enumerations` | 집합 목록 | PROJECT_ADMIN+ |
-| POST | `/api/projects/{projectId}/config/enumerations` | 집합 생성 `{enumKey,baseEnum?,name}` — `baseEnum`은 `PRIORITY` 또는 생략만 허용(상태값 확장은 거부, §3.28 참고) | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/enumerations` | 집합 생성 `{enumKey,baseEnum?,name}` — `baseEnum`은 `PRIORITY` 또는 생략만 허용(상태값 확장은 거부, §3.28 참고). **[2026-10-05 qa 반려 수정]** `enumKey=PRIORITY` ⇔ `baseEnum=PRIORITY`가 아니면 400(ADR-012 §C 각주) | PROJECT_ADMIN+ |
 | POST | `/api/projects/{projectId}/config/enumerations/{id}/values` | 값 추가 `{valueKey,label,displayOrder}` | PROJECT_ADMIN+ |
 | PUT | `/api/projects/{projectId}/config/enumerations/{id}/values/{valueId}` | 값 수정 | PROJECT_ADMIN+ |
 | DELETE | `/api/projects/{projectId}/config/enumerations/{id}/values/{valueId}` | 소프트 삭제(`is_system_default=true`면 거부) | PROJECT_ADMIN+ |

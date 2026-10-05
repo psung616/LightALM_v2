@@ -1,4 +1,4 @@
-> Owner: orchestrator · 실행은 developer | Status: current | Last-reviewed: 2026-08-08
+> Owner: orchestrator · 실행은 developer | Status: current | Last-reviewed: 2026-10-05
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 8. 단계별 개발 순서 (Claude 구현 지침)
@@ -111,9 +111,12 @@
 
 ---
 
-> Phase 16~19는 v3 확장(01-scope.md §1.2 v3 항목, 2026-08-08)이며 **아직 구현되지 않았다.** 착수 전 02-competitive-reference.md(참고 배경/저작권 준수 원칙)와 ADR-008을 먼저 확인할 것. architect 서브에이전트가 설계를 소유하고, developer 서브에이전트가 구현하며, qa-tester 서브에이전트가 검증한다(ROLES.md 참고).
+> Phase 16~19는 v3 확장(01-scope.md §1.2 v3 항목, 2026-08-08)이다. **2026-10-05 기준 Phase 16만 구현 완료(qa-tester 검증 통과), Phase 17~19는 아직 구현되지 않았다.** 착수 전 02-competitive-reference.md(참고 배경/저작권 준수 원칙)와 ADR-008을 먼저 확인할 것. architect 서브에이전트가 설계를 소유하고, developer 서브에이전트가 구현하며, qa-tester 서브에이전트가 검증한다(ROLES.md 참고).
 
-### Phase 16 — 리뷰 사이클 & 베이스라인
+### Phase 16 — 리뷰 사이클 & 베이스라인 ✅ 구현 완료 (2026-10-05, qa-tester 경미 1건 반려 → 수정 완료, 재검증 통과)
+
+> **[2026-10-05 구현 각주]** 마이그레이션은 v4(Phase 20~23, V13~V17) 이후에 착수해 실제 번호가 **`V18__create_review_and_baseline_tables.sql`**(4개 테이블 한 파일)이다. 패키지 `com.lightalm.review`(`ReviewCycleCommandService`/`ReviewCycleQueryService`), `com.lightalm.baseline`(`BaselineCommandService`/`BaselineQueryService`/`BaselineDiffService` + `BaselineSnapshotFactory`/`BaselineSnapshotJsonCodec`). 단위 테스트 29개 추가(`mvnw test` 161 → 190, 전체 통과). DoD 두 항목은 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 developer가 실측 확인했다: (1) 참여자 2명 전원 APPROVE 후 사이클 CLOSED까지 진행해도 대상 요구사항 `status=DRAFT`·`updated_at` 불변, 비참여자 PROJECT_ADMIN·시스템 ADMIN의 결정 기록은 403, (2) 베이스라인(요구사항·이슈·테스트케이스) 생성 → 요구사항 제목/설명/상태/담당자 수정 + 이슈 삭제 → diff가 요구사항 MODIFIED(title·description·status·assignedToId 4필드 정확), 이슈 DELETED, 테스트케이스 UNCHANGED로 반환. 운영 공용 DB에는 적용하지 않았다. 설계 대비 차이점은 03-data-model.md §3.19·§3.21, 04-api.md §4.17~4.18, 05-frontend.md §5.11~5.12의 구현 각주 참고. **qa-tester의 독립 검증은 아직이다.**
+
 1. `review_cycles`/`review_participants` 마이그레이션 + 엔티티 작성(03-data-model.md §3.18~3.19)
 2. `baselines`/`baseline_items` 마이그레이션 + 엔티티 작성(§3.20~3.21). 스냅샷 저장 로직은 베이스라인 생성 시점에 대상 엔티티의 현재 필드 값을 JSONB로 직렬화하는 서비스 메서드로 구현
 3. diff 계산 로직 구현(저장된 스냅샷 vs 현재 값을 필드 단위로 비교, 별도 테이블 없이 조회 시점에 계산)

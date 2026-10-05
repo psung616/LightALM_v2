@@ -1,4 +1,6 @@
-> Owner: architect | Status: Accepted (설계 완료, 구현 전) | Date: 2026-08-08 | **[2026-08-08 재작성]** 원본 ADR-008이 문서 인계(zip) 과정에서 파일 자체가 유실되어, 이미 커밋되어 있던 `01-scope.md` §1.2·`02-competitive-reference.md`·`03-data-model.md`/`04-api.md`/`05-frontend.md`의 v3 설계 내용을 근거로 다시 작성했다. 지어낸 내용이 아니라 위 문서들에 이미 확정되어 있던 결정을 ADR 형식으로 정리한 것이다.
+> Owner: architect | Status: Accepted (설계 완료. **Phase 16(리뷰 사이클+베이스라인)만 구현 완료 — qa-tester 검증에서 경미 1건 반려(역직렬화 오류 500) 후 수정 완료, qa-tester 재검증 통과(2026-10-05)**. Phase 17(위험 관리)·18(문서 뷰+변형 관리)·19(대시보드 위젯+리포트 내보내기)는 **구현 전**) | Date: 2026-08-08 | **[2026-08-08 재작성]** 원본 ADR-008이 문서 인계(zip) 과정에서 파일 자체가 유실되어, 이미 커밋되어 있던 `01-scope.md` §1.2·`02-competitive-reference.md`·`03-data-model.md`/`04-api.md`/`05-frontend.md`의 v3 설계 내용을 근거로 다시 작성했다. 지어낸 내용이 아니라 위 문서들에 이미 확정되어 있던 결정을 ADR 형식으로 정리한 것이다.
+
+> **[2026-10-05 구현 각주 — Phase 16]** developer가 Phase 16(리뷰 사이클 + 베이스라인)을 구현했다. 마이그레이션 `V18__create_review_and_baseline_tables.sql`, 패키지 `com.lightalm.review`·`com.lightalm.baseline`(docs/CLAUDE.md 신규 코드 규칙에 따라 Command/Query 서비스 분리, 베이스라인 diff는 `BaselineDiffService`). 리뷰 사이클 결정/닫기는 대상 status를 바꾸지 않는다는 원칙을 단위 테스트(의존성 구조 검사 포함)와 로컬 docker-compose Postgres 실측으로 확인했다. 설계 대비 구체화·차이점은 03-data-model.md §3.19·§3.21, 04-api.md §4.17~4.18, 05-frontend.md §5.11~5.12의 "2026-10-05 구현 각주" 참고. **Phase 17~19는 아직 미구현이며 이 ADR의 해당 설계는 그대로 유효하다.**
 
 # ADR-008: v3 확장 — 업계 ALM 툴의 일반적 기능 카테고리를 참고해 4개 영역 추가
 

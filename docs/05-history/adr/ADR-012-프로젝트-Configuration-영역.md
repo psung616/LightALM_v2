@@ -1,4 +1,4 @@
-> Owner: architect | Status: Accepted (설계 완료, **Phase 20~23(커스텀 필드/폼 레이아웃/열거형/워크플로우) 전부 구현 완료 — ADR-012 전체 완료**. Phase 20~21은 qa-tester 검증 통과(반려 1건 수정 포함, 2026-10-05). **Phase 22(열거형)·Phase 23(워크플로우)는 구현 완료, qa-tester 검증 전(2026-10-05)**) | Date: 2026-10-03
+> Owner: architect | Status: Accepted (설계 완료, **Phase 20~23(커스텀 필드/폼 레이아웃/열거형/워크플로우) 전부 구현 완료 — ADR-012 전체 완료**. Phase 20~21은 qa-tester 검증 통과(반려 1건 수정 포함, 2026-10-05). **Phase 22(열거형)는 qa-tester 반려 2건(DEPRECATED PRIORITY 보유 항목 수정 차단, enumKey/baseEnum 불일치 집합) 수정 완료 — qa-tester 재검증 통과(2026-10-05). Phase 23(워크플로우)은 치명적 버그 반려·수정 후 qa-tester 최종 재승인 완료(2026-10-05)**) | Date: 2026-10-03
 >
 > **[2026-10-04 구현 각주]** developer가 Phase 20(§A 커스텀 필드)을 구현 완료했다. 실제 마이그레이션 번호, 설계 대비 차이점은 §A 본문 각주와 `docs/00-meta/CURRENT-STATE.md` §1을 참고. Phase 21(폼 레이아웃)/22(열거형)/23(워크플로우)은 아직 미구현 상태이며 이 ADR의 나머지 설계는 그대로 유효하다.
 >
@@ -31,6 +31,11 @@
 > - API는 설계 문서(§C.4) 그대로: `GET/POST .../config/enumerations`, `POST .../config/enumerations/{id}/values`, `PUT/DELETE .../config/enumerations/{id}/values/{valueId}`, `GET .../enumerations/{enumKey}/values`. 마지막 조회 API는 집합이 없는 프로젝트의 `enumKey=PRIORITY` 요청에 대해 `id=null`인 응답으로 기존 Java enum 4개 값을 그대로 돌려준다(프론트가 집합 유무와 무관하게 동일한 모양의 응답을 받을 수 있게 한 설계 외 세부 선택).
 > - **알려진 범위 제한(의도적, 작업 지시서 명시)**: 프론트엔드 "열거형" 탭(§C.5)과, 요구사항/이슈/테스트케이스 생성·수정 화면에서 PRIORITY 드롭다운을 동적 값 목록으로 렌더링하는 작업은 이번 범위에 포함하지 않았다 — developer 작업 지시서가 DB/백엔드/리팩터링/테스트만 명시했고 프론트엔드 섹션이 없었다. 따라서 PROJECT_ADMIN이 API로 PRIORITY 값을 확장해도 현재 프론트 화면(고정된 LOW/MEDIUM/HIGH/CRITICAL 드롭다운)에는 아직 반영되지 않는다 — API는 정상 동작하지만 화면에서 확장된 값을 선택할 UI가 없다. 커스텀 필드 SINGLE_SELECT/MULTI_SELECT 선택지를 이 열거형 집합과 연결해 드롭다운으로 렌더링하는 것도 마찬가지로 미구현이다(Phase 20 각주의 "자유 텍스트 입력" 임시 구현이 그대로 유지됨). `docs/00-meta/CURRENT-STATE.md` §6에 리스크로 기록.
 > - 단위 테스트 18개 추가(`EnumerationSetServiceTest` 12개, `EnumerationValueValidatorTest` 6개) + 기존 `RequirementServiceTest`/`IssueServiceTest`/`TestCaseServiceTest`에 validator 연동/예외 전파 검증 테스트 3개 추가, 전체 `mvnw test` 120개 통과(기존 99개 + 신규 21개). 로컬 docker-compose 스택(실제 Postgres)에 V15까지 마이그레이션을 적용해 API 전체를 curl로 end-to-end 수동 검증했다(REQUIREMENT_STATUS 등 금지된 baseEnum 거부, PRIORITY 집합 생성 시 4개 시스템 기본값 자동 시드, 집합 미생성 프로젝트의 기본 Priority enum fallback 검증 및 회귀 없음, 커스텀 값 추가 후 요구사항/이슈/테스트케이스 생성 API가 새 값을 허용, is_system_default 값 삭제 거부/라벨 수정 허용, 값 비활성화 후 재사용 거부, enumKey 중복 생성 거부).
+>
+> **[2026-10-05 qa-tester 반려 및 수정 각주 — Phase 22, 2건]**
+> 1. **(Medium) 폐기된 PRIORITY 값을 가진 항목은 다른 필드 수정까지 400으로 막혔다.** 재현: PRIORITY에 BLOCKER 추가 → 이슈를 BLOCKER로 생성 → BLOCKER 값 DELETE(DEPRECATED) → 같은 이슈의 제목만 PUT → `400 "유효하지 않은 PRIORITY 값입니다: BLOCKER"`. 원인: `IssueService`/`RequirementService`/`TestCaseService`의 update가 priority를 바꾸지 않아도 `requireValidValue`로 ACTIVE 여부를 검사했다. 수정: `EnumerationValueValidator.requireValidValueForChange(projectId, enumKey, currentValue, newValue)`를 신설하고 세 서비스의 update 경로가 이를 쓰도록 바꿨다 — 값이 기존과 같으면 검증을 생략하고, 다른 값으로 바꿀 때만 ACTIVE를 요구한다. create 경로는 그대로 `requireValidValue`(폐기 값으로 신규 생성 불가). §A(Phase 20) 커스텀 필드의 DEPRECATED 처리와 같은 원칙("폐기 = 새로 고를 수 없음"이지 기존 보유 항목 잠금이 아님). 다른 값에서 폐기된 값으로 되돌리는 것은 여전히 400.
+> 2. **(Medium) `enumKey=PRIORITY` + `baseEnum` 생략 집합이 프로젝트 전체의 priority 쓰기를 막았다.** 재현: `POST .../config/enumerations {"enumKey":"PRIORITY","name":"x"}` → 201(값 0개) → 이후 그 프로젝트의 항목 생성/수정이 기본값 MEDIUM 포함 전부 400. 집합 삭제 API가 없어 복구가 곤란했다. 원인: validator는 `enumKey`로 집합을 찾고, 기본값 시드는 `baseEnum=PRIORITY`일 때만 해 두 판별 기준이 어긋났다. 수정: `EnumerationSetService.create()`가 **`enumKey=PRIORITY` ⇔ `baseEnum=PRIORITY`**를 강제한다(어느 방향으로든 어긋나면 400). **이 방식을 고른 이유**: validator의 조회 기준을 baseEnum으로 바꾸는 방안보다 변경 지점이 하나(생성 경로)로 작고, "PRIORITY 집합은 항상 기본값 4개가 시드된 상태로만 존재한다"는 불변식을 생성 시점에 보장하므로 validator·시드·조회 API(`GET .../enumerations/{enumKey}/values`)가 모두 기존 코드 그대로 일관되게 동작한다. 스키마 변경(V19) 불필요. 한계: 이 수정 이전에 이미 만들어진 불일치 집합(예: 로컬 검증 DB의 프로젝트 14)은 자동 정리되지 않는다 — 집합 삭제 API가 없으므로 생기면 DB에서 직접 정리해야 한다.
+> - 단위 테스트 추가: `EnumerationValueValidatorTest` +2, `EnumerationSetServiceTest` +2, `IssueServiceTest`/`RequirementServiceTest`/`TestCaseServiceTest` 각 +1(같은 작업에서 `GlobalExceptionHandlerTest` +2 포함 `mvnw test` 199개 통과). 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 qa-tester 재현 시나리오 재확인: 이슈 13(BLOCKER, 폐기됨)의 제목만 수정 → 200(priority BLOCKER 유지), BLOCKER를 명시해 재전송 → 200, HIGH로 변경 → 200, 다시 BLOCKER로 변경 → 400, BLOCKER로 신규 생성 → 400, 요구사항/테스트케이스(로컬 DB에서 priority를 BLOCKER로 직접 설정해 재현)의 제목만 수정 → 200. `enumKey=PRIORITY`+baseEnum 생략 → 400, `MY_PRIORITY`+`baseEnum=PRIORITY` → 400(집합 생성 안 됨, 이후 이슈 생성 201), `SEVERITY`+baseEnum 생략 → 201, `PRIORITY`+`PRIORITY` → 201(기본값 4개 시드).
 
 # ADR-012: 프로젝트별 Configuration 영역 — 커스텀 필드 / 폼 레이아웃 / 열거형 / 워크플로우 전이 규칙 (비스코프 재검토)
 
@@ -252,7 +257,7 @@ UNIQUE (project_id, target_type) — 프로젝트+target_type당 1개 고정
 
 UNIQUE (project_id, enum_key)
 
-> **서비스 레이어 제약(DB 제약이 아님)**: `base_enum`이 `REQUIREMENT_STATUS`/`ISSUE_STATUS`/`TEST_CASE_STATUS`인 집합의 생성은 이번 버전에서 `EnumerationSetService`가 거부한다(§C.1 제외 범위). `base_enum='PRIORITY'`와 `base_enum=NULL`(커스텀 필드 전용)만 생성 가능.
+> **서비스 레이어 제약(DB 제약이 아님)**: `base_enum`이 `REQUIREMENT_STATUS`/`ISSUE_STATUS`/`TEST_CASE_STATUS`인 집합의 생성은 이번 버전에서 `EnumerationSetService`가 거부한다(§C.1 제외 범위). `base_enum='PRIORITY'`와 `base_enum=NULL`(커스텀 필드 전용)만 생성 가능. **[2026-10-05 qa-tester 반려 수정]** 추가로 `enum_key='PRIORITY'` ⇔ `base_enum='PRIORITY'`를 생성 시점에 강제한다(어긋나면 400) — 상세는 문서 상단 "Phase 22 qa-tester 반려 및 수정 각주" 2번.
 
 **`project_enumeration_values`**
 | 컬럼 | 타입 | 제약 |
