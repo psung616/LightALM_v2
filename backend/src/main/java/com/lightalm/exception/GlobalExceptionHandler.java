@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -27,6 +28,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
         return build(HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage(), request);
+    }
+
+    /**
+     * {@code @PreAuthorize}(예: {@code hasRole('ADMIN')})가 거부하면 Spring Security 6.3+에서
+     * {@code AuthorizationDeniedException}(이 클래스의 상위 타입)이 컨트롤러 메서드 호출 중
+     * 던져진다. 이 핸들러가 없으면 아래 {@link #handleUnexpected} catch-all로 떨어져 403 대신
+     * 500을 반환한다 — ADR-014 구현 중 {@code ThemeAdminController}에서 실제로 재현/발견됐고,
+     * {@code @PreAuthorize}를 쓰는 다른 모든 기존 컨트롤러(예: LicenseAdminController)에도
+     * 동일하게 영향을 주는 전역 버그였다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, "FORBIDDEN", "접근 권한이 없습니다.", request);
     }
 
     @ExceptionHandler(ValidationException.class)
