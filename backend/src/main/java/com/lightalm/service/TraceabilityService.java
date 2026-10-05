@@ -5,6 +5,7 @@ import com.lightalm.domain.Project;
 import com.lightalm.domain.ProjectRole;
 import com.lightalm.domain.Requirement;
 import com.lightalm.domain.TargetType;
+import com.lightalm.domain.TestCase;
 import com.lightalm.domain.TraceabilityLink;
 import com.lightalm.domain.User;
 import com.lightalm.dto.CreateTraceabilityLinkRequest;
@@ -16,6 +17,7 @@ import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.exception.ValidationException;
 import com.lightalm.repository.IssueRepository;
 import com.lightalm.repository.RequirementRepository;
+import com.lightalm.repository.TestCaseRepository;
 import com.lightalm.repository.TraceabilityLinkRepository;
 import com.lightalm.repository.TraceabilityTreeRepository;
 import com.lightalm.repository.UserRepository;
@@ -37,6 +39,7 @@ public class TraceabilityService {
     private final TraceabilityTreeRepository traceabilityTreeRepository;
     private final RequirementRepository requirementRepository;
     private final IssueRepository issueRepository;
+    private final TestCaseRepository testCaseRepository;
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
@@ -104,30 +107,51 @@ public class TraceabilityService {
         return result;
     }
 
+    /**
+     * ADR-013 버그 수정(qa-tester 발견): otherType이 ISSUE가 아니면 전부 REQUIREMENT로 간주하던
+     * 기존 분기가 TEST_CASE를 REQUIREMENT로 잘못 조회하는 문제가 있었다. REQUIREMENT/ISSUE/TEST_CASE
+     * 세 타입을 모두 명시적으로 분기한다.
+     */
     private RequirementLinkResponse toRequirementLinkResponse(TraceabilityLink link, TargetType otherType, Long otherId,
                                                                 com.lightalm.domain.LinkType linkType) {
-        if (otherType == TargetType.ISSUE) {
-            Issue issue = issueRepository.findById(otherId).orElse(null);
-            return RequirementLinkResponse.builder()
-                    .linkId(link.getId())
-                    .linkedType(TargetType.ISSUE)
-                    .linkedId(otherId)
-                    .linkedKey(issue != null ? issue.getIssueKey() : null)
-                    .linkedTitle(issue != null ? issue.getTitle() : null)
-                    .linkedStatus(issue != null ? issue.getStatus().name() : null)
-                    .linkType(linkType)
-                    .build();
-        }
-        Requirement requirement = requirementRepository.findById(otherId).orElse(null);
-        return RequirementLinkResponse.builder()
-                .linkId(link.getId())
-                .linkedType(TargetType.REQUIREMENT)
-                .linkedId(otherId)
-                .linkedKey(requirement != null ? requirement.getReqKey() : null)
-                .linkedTitle(requirement != null ? requirement.getTitle() : null)
-                .linkedStatus(requirement != null ? requirement.getStatus().name() : null)
-                .linkType(linkType)
-                .build();
+        return switch (otherType) {
+            case ISSUE -> {
+                Issue issue = issueRepository.findById(otherId).orElse(null);
+                yield RequirementLinkResponse.builder()
+                        .linkId(link.getId())
+                        .linkedType(TargetType.ISSUE)
+                        .linkedId(otherId)
+                        .linkedKey(issue != null ? issue.getIssueKey() : null)
+                        .linkedTitle(issue != null ? issue.getTitle() : null)
+                        .linkedStatus(issue != null ? issue.getStatus().name() : null)
+                        .linkType(linkType)
+                        .build();
+            }
+            case TEST_CASE -> {
+                TestCase testCase = testCaseRepository.findById(otherId).orElse(null);
+                yield RequirementLinkResponse.builder()
+                        .linkId(link.getId())
+                        .linkedType(TargetType.TEST_CASE)
+                        .linkedId(otherId)
+                        .linkedKey(testCase != null ? testCase.getTcKey() : null)
+                        .linkedTitle(testCase != null ? testCase.getTitle() : null)
+                        .linkedStatus(testCase != null ? testCase.getStatus().name() : null)
+                        .linkType(linkType)
+                        .build();
+            }
+            case REQUIREMENT -> {
+                Requirement requirement = requirementRepository.findById(otherId).orElse(null);
+                yield RequirementLinkResponse.builder()
+                        .linkId(link.getId())
+                        .linkedType(TargetType.REQUIREMENT)
+                        .linkedId(otherId)
+                        .linkedKey(requirement != null ? requirement.getReqKey() : null)
+                        .linkedTitle(requirement != null ? requirement.getTitle() : null)
+                        .linkedStatus(requirement != null ? requirement.getStatus().name() : null)
+                        .linkType(linkType)
+                        .build();
+            }
+        };
     }
 
     @Transactional

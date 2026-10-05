@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getProject, listMembers } from '../api/project';
 import { useAuth } from '../auth/AuthContext';
 import { FullScreenLoader } from './FullScreenLoader';
+import { WorkItemTreePanel } from './WorkItemTreePanel';
 
 const navItemClass = ({ isActive }: { isActive: boolean }) =>
   `block rounded-md px-3 py-2 text-sm ${isActive ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100'}`;
@@ -56,6 +57,7 @@ export function ProjectLayout() {
           <NavLink to={`/projects/${id}/requirements`} className={navItemClass}>
             요구사항
           </NavLink>
+          {Number.isFinite(id) && <WorkItemTreePanel projectId={id} />}
           <NavLink to={`/projects/${id}/issues`} className={navItemClass}>
             이슈
           </NavLink>
