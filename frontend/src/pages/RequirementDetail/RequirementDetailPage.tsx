@@ -24,6 +24,7 @@ import { FullScreenLoader } from '../../components/FullScreenLoader';
 import { AuditLogList } from '../../components/AuditLogList';
 import { CustomFieldsPanel } from '../../components/CustomFieldsPanel';
 import { DynamicStandardFieldsLayout } from '../../components/DynamicStandardFieldsLayout';
+import { ReviewCyclePanel } from '../../components/ReviewCyclePanel';
 
 const STATUS_OPTIONS: RequirementStatus[] = ['DRAFT', 'APPROVED', 'IN_PROGRESS', 'IMPLEMENTED', 'VERIFIED', 'REJECTED'];
 const TYPE_OPTIONS: RequirementType[] = ['FUNCTIONAL', 'NON_FUNCTIONAL', 'BUSINESS'];
@@ -238,7 +239,7 @@ export function RequirementDetailPage() {
                 onClick={() => approvalRequestMutation.mutate()}
                 className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
               >
-                {approvalRequestMutation.isSuccess ? '승인 대기 중' : '승인 요청'}
+                {approvalRequestMutation.isSuccess ? '승인 대기 중' : '승인 요청(상태 전이 게이트)'}
               </button>
             )}
             <select
@@ -620,6 +621,8 @@ export function RequirementDetailPage() {
           </button>
         </div>
       </div>
+
+      <ReviewCyclePanel projectId={id} targetPath="requirements" targetId={rid} />
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-700">이력</h2>

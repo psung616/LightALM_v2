@@ -11,6 +11,7 @@ import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { ISSUE_MAIN_STAGES, WorkflowChart } from '../../components/WorkflowChart';
 import { FullScreenLoader } from '../../components/FullScreenLoader';
 import { AuditLogList } from '../../components/AuditLogList';
+import { ReviewCyclePanel } from '../../components/ReviewCyclePanel';
 import { CustomFieldsPanel } from '../../components/CustomFieldsPanel';
 import { DynamicStandardFieldsLayout } from '../../components/DynamicStandardFieldsLayout';
 
@@ -468,6 +469,8 @@ export function IssueDetailPage() {
           </button>
         </div>
       </div>
+
+      <ReviewCyclePanel projectId={id} targetPath="issues" targetId={iid} />
 
       <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-700">이력</h2>

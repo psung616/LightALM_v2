@@ -73,6 +73,9 @@ export function ProjectLayout() {
           <NavLink to={`/projects/${id}/releases`} className={navItemClass}>
             릴리스
           </NavLink>
+          <NavLink to={`/projects/${id}/baselines`} className={navItemClass}>
+            베이스라인
+          </NavLink>
           {canManageSettings && (
             <NavLink to={`/projects/${id}/approvals`} className={navItemClass}>
               승인함

@@ -25,6 +25,8 @@ import { TestRunDetailPage } from './pages/TestRunDetail/TestRunDetailPage';
 import { ReleaseListPage } from './pages/ReleaseList/ReleaseListPage';
 import { ReleaseDetailPage } from './pages/ReleaseDetail/ReleaseDetailPage';
 import { ApprovalInboxPage } from './pages/ApprovalInbox/ApprovalInboxPage';
+import { BaselineListPage } from './pages/BaselineList/BaselineListPage';
+import { BaselineDetailPage } from './pages/BaselineDetail/BaselineDetailPage';
 
 export const router = createBrowserRouter([
   {
@@ -68,6 +70,8 @@ export const router = createBrowserRouter([
           { path: '/projects/:projectId/test-runs/:runId', element: <TestRunDetailPage /> },
           { path: '/projects/:projectId/releases', element: <ReleaseListPage /> },
           { path: '/projects/:projectId/releases/:releaseId', element: <ReleaseDetailPage /> },
+          { path: '/projects/:projectId/baselines', element: <BaselineListPage /> },
+          { path: '/projects/:projectId/baselines/:baselineId', element: <BaselineDetailPage /> },
           { path: '/projects/:projectId/approvals', element: <ApprovalInboxPage /> },
           { path: '/projects/:projectId/settings', element: <ProjectSettingsPage /> },
         ],
