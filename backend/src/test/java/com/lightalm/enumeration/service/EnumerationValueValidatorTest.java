@@ -77,6 +77,27 @@ class EnumerationValueValidatorTest {
                 .isInstanceOf(ValidationException.class);
     }
 
+    /** qa-tester 반려(2026-10-05): 기존 값이 DEPRECATED여도 값을 바꾸지 않는 수정은 검증을 생략한다. */
+    @Test
+    void requireValidValueForChange_whenValueUnchanged_skipsValidationEvenIfDeprecated() {
+        assertThatCode(() -> enumerationValueValidator.requireValidValueForChange(10L, "PRIORITY", "BLOCKER", "BLOCKER"))
+                .doesNotThrowAnyException();
+        org.mockito.Mockito.verifyNoInteractions(setRepository, valueRepository);
+    }
+
+    @Test
+    void requireValidValueForChange_whenChangingToDeprecatedValue_isRejected() {
+        Project project = Project.builder().id(10L).projectKey("LALM").name("Light ALM").build();
+        ProjectEnumerationSet set = ProjectEnumerationSet.builder()
+                .project(project).enumKey("PRIORITY").baseEnum(BaseEnumType.PRIORITY).name("우선순위 확장").build();
+        when(setRepository.findByProjectIdAndEnumKey(10L, "PRIORITY")).thenReturn(Optional.of(set));
+        when(valueRepository.existsByEnumerationSetIdAndValueKeyAndStatus(null, "BLOCKER", EnumerationValueStatus.ACTIVE))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> enumerationValueValidator.requireValidValueForChange(10L, "PRIORITY", "LOW", "BLOCKER"))
+                .isInstanceOf(ValidationException.class);
+    }
+
     @Test
     void requireValidValue_whenValueIsNull_throwsValidationException() {
         assertThatThrownBy(() -> enumerationValueValidator.requireValidValue(10L, "PRIORITY", null))

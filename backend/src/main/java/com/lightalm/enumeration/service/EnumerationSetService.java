@@ -38,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EnumerationSetService {
 
+    private static final String PRIORITY_ENUM_KEY = "PRIORITY";
+
     private static final Set<BaseEnumType> FORBIDDEN_BASE_ENUMS = Set.of(
             BaseEnumType.REQUIREMENT_STATUS, BaseEnumType.ISSUE_STATUS, BaseEnumType.TEST_CASE_STATUS);
 
@@ -64,6 +66,17 @@ public class EnumerationSetService {
             throw new ValidationException(
                     "상태값(" + baseEnum + ") 자체의 프로젝트별 확장은 지원하지 않습니다. "
                             + "baseEnum은 PRIORITY 또는 생략(커스텀 필드 전용)만 허용됩니다.");
+        }
+        // qa-tester 반려(2026-10-05): validator는 enumKey="PRIORITY"로 집합을 찾고, 기본값 시드는 baseEnum=PRIORITY일
+        // 때만 일어난다. 둘이 어긋나면(예: enumKey=PRIORITY + baseEnum 생략) 값 0개짜리 집합이 PRIORITY 검증을
+        // 가로채 그 프로젝트의 모든 항목 생성/수정이 400이 되고, 집합 삭제 API가 없어 복구할 수 없었다.
+        // 두 판별 기준이 항상 같은 집합을 가리키도록 "enumKey=PRIORITY ⇔ baseEnum=PRIORITY"를 생성 시점에 강제한다.
+        boolean priorityKey = PRIORITY_ENUM_KEY.equals(request.enumKey());
+        boolean priorityBase = baseEnum == BaseEnumType.PRIORITY;
+        if (priorityKey != priorityBase) {
+            throw new ValidationException(
+                    "PRIORITY 확장 집합은 enumKey와 baseEnum을 모두 PRIORITY로 지정해야 합니다"
+                            + "(커스텀 필드 전용 집합은 PRIORITY가 아닌 enumKey + baseEnum 생략).");
         }
         if (setRepository.existsByProjectIdAndEnumKey(projectId, request.enumKey())) {
             throw new ValidationException("이미 같은 enumKey의 열거형 집합이 존재합니다: " + request.enumKey());

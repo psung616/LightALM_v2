@@ -117,6 +117,23 @@ class RequirementServiceTest {
         verify(requirementRepository, org.mockito.Mockito.never()).save(any(Requirement.class));
     }
 
+    /** qa-tester 반려(2026-10-05): priority를 안 바꾸는 수정은 기존 값(폐기된 BLOCKER 포함)을 기존→신규 비교 경로로 넘긴다. */
+    @Test
+    void update_withoutPriorityChange_validatesAsUnchangedValue() {
+        Requirement existing = Requirement.builder().id(8L).project(project).reqKey("LALM-R8").title("old")
+                .type(RequirementType.FUNCTIONAL).priority("BLOCKER").build();
+        when(requirementRepository.findById(8L)).thenReturn(Optional.of(existing));
+        UpdateRequirementRequest request = new UpdateRequirementRequest();
+        request.setTitle("renamed");
+        request.setType(RequirementType.FUNCTIONAL);
+
+        requirementService.update(10L, 8L, request, principal);
+
+        assertThat(existing.getTitle()).isEqualTo("renamed");
+        assertThat(existing.getPriority()).isEqualTo("BLOCKER");
+        verify(enumerationValueValidator).requireValidValueForChange(10L, "PRIORITY", "BLOCKER", "BLOCKER");
+    }
+
     @Test
     void update_rejectsSelfAsParent() {
         UpdateRequirementRequest request = new UpdateRequirementRequest();

@@ -121,7 +121,7 @@ public class IssueService {
         LocalDate oldDueDate = issue.getDueDate();
 
         String newPriority = request.getPriority() != null ? request.getPriority() : issue.getPriority();
-        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", newPriority);
+        enumerationValueValidator.requireValidValueForChange(projectId, "PRIORITY", oldPriority, newPriority);
 
         issue.setTitle(request.getTitle());
         issue.setDescription(request.getDescription());

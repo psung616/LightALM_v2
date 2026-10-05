@@ -177,7 +177,7 @@ public class RequirementService {
         LocalDate oldDueDate = requirement.getDueDate();
 
         String newPriority = request.getPriority() != null ? request.getPriority() : requirement.getPriority();
-        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", newPriority);
+        enumerationValueValidator.requireValidValueForChange(projectId, "PRIORITY", oldPriority, newPriority);
 
         requirement.setTitle(request.getTitle());
         requirement.setDescription(request.getDescription());

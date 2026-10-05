@@ -113,6 +113,23 @@ class IssueServiceTest {
         verify(issueRepository, org.mockito.Mockito.never()).save(any(Issue.class));
     }
 
+    /** qa-tester 반려(2026-10-05): priority를 안 바꾸는 수정은 기존 값(폐기된 BLOCKER 포함)을 기존→신규 비교 경로로 넘긴다. */
+    @Test
+    void update_withoutPriorityChange_validatesAsUnchangedValue() {
+        Issue existing = Issue.builder().id(13L).project(project).issueKey("LALM-13").title("blk iss")
+                .type(IssueType.BUG).priority("BLOCKER").build();
+        when(issueRepository.findById(13L)).thenReturn(Optional.of(existing));
+        com.lightalm.dto.UpdateIssueRequest request = new com.lightalm.dto.UpdateIssueRequest();
+        request.setTitle("blk iss renamed");
+        request.setType(IssueType.BUG);
+
+        IssueResponse response = issueService.update(10L, 13L, request, principal);
+
+        assertThat(response.getTitle()).isEqualTo("blk iss renamed");
+        assertThat(response.getPriority()).isEqualTo("BLOCKER");
+        verify(enumerationValueValidator).requireValidValueForChange(10L, "PRIORITY", "BLOCKER", "BLOCKER");
+    }
+
     @Test
     void changeStatus_toDone_setsResolvedAt() {
         Issue existing = Issue.builder().id(5L).project(project).issueKey("LALM-105").status(IssueStatus.IN_PROGRESS).build();

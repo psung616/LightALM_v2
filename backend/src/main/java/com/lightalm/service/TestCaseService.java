@@ -117,7 +117,7 @@ public class TestCaseService {
         Requirement requirement = resolveRequirement(projectId, request.getRequirementId());
 
         String newPriority = request.getPriority() != null ? request.getPriority() : testCase.getPriority();
-        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", newPriority);
+        enumerationValueValidator.requireValidValueForChange(projectId, "PRIORITY", testCase.getPriority(), newPriority);
 
         testCase.setTitle(request.getTitle());
         testCase.setDescription(request.getDescription());

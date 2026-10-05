@@ -3,6 +3,8 @@ package com.lightalm.enumeration.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.lightalm.domain.Priority;
@@ -119,6 +121,26 @@ class EnumerationSetServiceTest {
         EnumerationSetResponse response = enumerationSetService.create(10L, request, principal);
 
         assertThat(response.values()).isEmpty();
+    }
+
+    /** qa-tester 반려(2026-10-05): enumKey=PRIORITY + baseEnum 생략은 값 0개 집합이 PRIORITY 검증을 가로채므로 거부. */
+    @Test
+    void create_withPriorityEnumKeyButNoBaseEnum_isRejected() {
+        CreateEnumerationSetRequest request = new CreateEnumerationSetRequest("PRIORITY", null, "x");
+
+        assertThatThrownBy(() -> enumerationSetService.create(10L, request, principal))
+                .isInstanceOf(ValidationException.class);
+        verify(setRepository, never()).save(any());
+    }
+
+    /** 반대 방향도 거부: baseEnum=PRIORITY인데 enumKey가 다르면 시드된 값이 PRIORITY 검증에 쓰이지 않는다. */
+    @Test
+    void create_withPriorityBaseEnumButOtherEnumKey_isRejected() {
+        CreateEnumerationSetRequest request = new CreateEnumerationSetRequest("MY_PRIORITY", BaseEnumType.PRIORITY, "x");
+
+        assertThatThrownBy(() -> enumerationSetService.create(10L, request, principal))
+                .isInstanceOf(ValidationException.class);
+        verify(setRepository, never()).save(any());
     }
 
     @Test

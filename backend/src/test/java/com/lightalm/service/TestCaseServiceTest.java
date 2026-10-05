@@ -66,6 +66,24 @@ class TestCaseServiceTest {
         project = Project.builder().id(10L).projectKey("LALM").name("Light ALM").build();
     }
 
+    /** qa-tester 반려(2026-10-05): priority를 안 바꾸는 수정은 기존 값(폐기된 BLOCKER 포함)을 기존→신규 비교 경로로 넘긴다. */
+    @Test
+    void update_withoutPriorityChange_validatesAsUnchangedValue() {
+        TestCase existing = TestCase.builder().id(9L).project(project).tcKey("LALM-TC9").title("old")
+                .steps("s").expectedResult("e").priority("BLOCKER").build();
+        when(testCaseRepository.findById(9L)).thenReturn(Optional.of(existing));
+        com.lightalm.dto.UpdateTestCaseRequest request = new com.lightalm.dto.UpdateTestCaseRequest();
+        request.setTitle("renamed");
+        request.setSteps("s");
+        request.setExpectedResult("e");
+
+        TestCaseResponse response = testCaseService.update(10L, 9L, request, principal);
+
+        assertThat(response.getTitle()).isEqualTo("renamed");
+        assertThat(response.getPriority()).isEqualTo("BLOCKER");
+        verify(enumerationValueValidator).requireValidValueForChange(10L, "PRIORITY", "BLOCKER", "BLOCKER");
+    }
+
     @Test
     void create_generatesTcKeyAndPersistsWithDefaultDraftStatus() {
         CreateTestCaseRequest request = new CreateTestCaseRequest();

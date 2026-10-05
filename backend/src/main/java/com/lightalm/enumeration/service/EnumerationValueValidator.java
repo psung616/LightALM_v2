@@ -52,6 +52,22 @@ public class EnumerationValueValidator {
         }
     }
 
+    /**
+     * 수정(update) 경로 전용. 값이 기존 값과 같으면(=사용자가 이 필드를 바꾸지 않았으면) 검증을 생략하고,
+     * 다른 값으로 바꿀 때만 {@link #requireValidValue}로 ACTIVE 여부를 검사한다.
+     *
+     * <p>qa-tester 반려(2026-10-05): 이미 저장된 값이 나중에 DEPRECATED 처리되면, 그 항목은 priority를
+     * 건드리지 않은 다른 필드 수정까지 400으로 막혔다. Phase 20 커스텀 필드의 DEPRECATED 처리와 같은 원칙
+     * — "폐기 = 새로 고를 수 없음"이지 "기존 값 보유 항목 잠금"이 아니다 — 으로 맞춘다(ADR-012 §C 각주).</p>
+     */
+    @Transactional(readOnly = true)
+    public void requireValidValueForChange(Long projectId, String enumKey, String currentValue, String newValue) {
+        if (newValue != null && newValue.equals(currentValue)) {
+            return;
+        }
+        requireValidValue(projectId, enumKey, newValue);
+    }
+
     private void requireValidDefaultValue(String enumKey, String value) {
         if (!PRIORITY_ENUM_KEY.equals(enumKey)) {
             throw new ValidationException("정의되지 않은 열거형입니다: " + enumKey);
