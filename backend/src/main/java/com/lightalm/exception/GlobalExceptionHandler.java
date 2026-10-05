@@ -4,16 +4,22 @@ import com.lightalm.dto.ErrorResponse;
 import com.lightalm.license.domain.LicenseFileRejectedException;
 import com.lightalm.license.domain.LicenseInvalidException;
 import com.lightalm.license.domain.LicenseSeatLimitExceededException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -75,6 +81,52 @@ public class GlobalExceptionHandler {
                 .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
                 .orElse("입력값이 올바르지 않습니다.");
         return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message, request);
+    }
+
+    /**
+     * 요청 본문을 DTO로 역직렬화하지 못한 경우(본문 없음, JSON 문법 오류, enum에 없는 값 — 예: {@code targetType:"FOO"}
+     * 또는 소문자 {@code "requirement"}, {@code decision:"FOO"}). 클라이언트 입력 오류이므로 400.
+     * 이 핸들러가 없으면 catch-all로 떨어져 500이 응답됐다(qa-tester Phase 16 반려, 2026-10-05).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", describeUnreadableBody(ex), request);
+    }
+
+    /** 경로 변수/쿼리 파라미터 타입 변환 실패(예: {@code /baselines/abc}, {@code ?status=FOO}) — 400. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleArgumentTypeMismatch(MethodArgumentTypeMismatchException ex,
+                                                                    HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR",
+                ex.getName() + ": 허용되지 않는 값입니다(" + ex.getValue() + ")", request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex,
+                                                                HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getParameterName() + ": 필수 파라미터입니다.", request);
+    }
+
+    private static String describeUnreadableBody(HttpMessageNotReadableException ex) {
+        if (ex.getCause() instanceof InvalidFormatException invalid) {
+            StringBuilder path = new StringBuilder();
+            for (var reference : invalid.getPath()) {
+                if (reference.getFieldName() != null) {
+                    path.append(path.isEmpty() ? "" : ".").append(reference.getFieldName());
+                } else {
+                    path.append('[').append(reference.getIndex()).append(']');
+                }
+            }
+            String field = path.toString();
+            Class<?> targetType = invalid.getTargetType();
+            if (targetType != null && targetType.isEnum()) {
+                String allowed = Arrays.stream(targetType.getEnumConstants()).map(Object::toString)
+                        .collect(Collectors.joining(", "));
+                return field + ": 허용되지 않는 값입니다(" + invalid.getValue() + "). 허용값: " + allowed;
+            }
+            return field + ": 형식이 올바르지 않습니다(" + invalid.getValue() + ")";
+        }
+        return "요청 본문을 읽을 수 없습니다(본문 누락 또는 JSON 형식 오류).";
     }
 
     @ExceptionHandler(Exception.class)
