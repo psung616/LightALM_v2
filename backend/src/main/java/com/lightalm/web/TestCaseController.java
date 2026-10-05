@@ -1,6 +1,5 @@
 package com.lightalm.web;
 
-import com.lightalm.domain.Priority;
 import com.lightalm.domain.TestCaseStatus;
 import com.lightalm.dto.CreateTestCaseRequest;
 import com.lightalm.dto.PageResponse;
@@ -35,7 +34,7 @@ public class TestCaseController {
     public PageResponse<TestCaseResponse> list(@PathVariable Long projectId,
                                                 @RequestParam(required = false) Long requirementId,
                                                 @RequestParam(required = false) TestCaseStatus status,
-                                                @RequestParam(required = false) Priority priority,
+                                                @RequestParam(required = false) String priority,
                                                 @RequestParam(required = false) String keyword,
                                                 @AuthenticationPrincipal UserPrincipal principal,
                                                 Pageable pageable) {

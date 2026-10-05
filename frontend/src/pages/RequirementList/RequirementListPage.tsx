@@ -3,13 +3,16 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRequirement, listRequirements } from '../../api/requirement';
 import { listMembers } from '../../api/project';
-import type { Priority, RequirementStatus, RequirementType } from '../../types/common';
+import { getFormLayoutForRender } from '../../api/formLayout';
+import type { Priority, RequirementLevel, RequirementStatus, RequirementType } from '../../types/common';
 import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
+import { DynamicStandardFieldsLayout } from '../../components/DynamicStandardFieldsLayout';
 
 const STATUS_OPTIONS: RequirementStatus[] = ['DRAFT', 'APPROVED', 'IN_PROGRESS', 'IMPLEMENTED', 'VERIFIED', 'REJECTED'];
 const TYPE_OPTIONS: RequirementType[] = ['FUNCTIONAL', 'NON_FUNCTIONAL', 'BUSINESS'];
 const PRIORITY_OPTIONS: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const REQUIREMENT_LEVEL_OPTIONS: RequirementLevel[] = ['PRD', 'SRS'];
 
 export function RequirementListPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -20,16 +23,18 @@ export function RequirementListPage() {
   const [type, setType] = useState('');
   const [priority, setPriority] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [requirementLevel, setRequirementLevel] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
   const requirementsQuery = useQuery({
-    queryKey: ['project', id, 'requirements', { status, type, priority, keyword }],
+    queryKey: ['project', id, 'requirements', { status, type, priority, keyword, requirementLevel }],
     queryFn: () =>
       listRequirements(id, {
         status: (status || undefined) as RequirementStatus | undefined,
         type: (type || undefined) as RequirementType | undefined,
         priority: (priority || undefined) as Priority | undefined,
         keyword: keyword || undefined,
+        requirementLevel: (requirementLevel || undefined) as RequirementLevel | undefined,
         size: 100,
       }),
     enabled: Number.isFinite(id),
@@ -41,6 +46,13 @@ export function RequirementListPage() {
     enabled: Number.isFinite(id),
   });
 
+  // ADR-012 §B(Phase 21): 레이아웃이 설정되지 않은 프로젝트는 기존과 동일한 고정 폼이 그대로 보인다.
+  const layoutQuery = useQuery({
+    queryKey: ['project', id, 'form-layouts', 'REQUIREMENT'],
+    queryFn: () => getFormLayoutForRender(id, 'REQUIREMENT'),
+    enabled: Number.isFinite(id),
+  });
+
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -49,7 +61,17 @@ export function RequirementListPage() {
     parentRequirementId: '',
     assignedTo: '',
     dueDate: '',
+    requirementLevel: 'PRD' as RequirementLevel,
   });
+
+  // ADR-013: 상위 요구사항을 선택하지 않았으면 PRD, 선택했으면 SRS를 기본값으로 추천한다(프론트 전용, 서버는 강제하지 않음).
+  function handleParentChange(parentRequirementId: string) {
+    setForm((prev) => ({
+      ...prev,
+      parentRequirementId,
+      requirementLevel: parentRequirementId ? 'SRS' : 'PRD',
+    }));
+  }
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -61,11 +83,21 @@ export function RequirementListPage() {
         parentRequirementId: form.parentRequirementId ? Number(form.parentRequirementId) : undefined,
         assignedTo: form.assignedTo ? Number(form.assignedTo) : undefined,
         dueDate: form.dueDate || undefined,
+        requirementLevel: form.requirementLevel,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', id, 'requirements'] });
       setShowCreate(false);
-      setForm({ title: '', description: '', type: 'FUNCTIONAL', priority: 'MEDIUM', parentRequirementId: '', assignedTo: '', dueDate: '' });
+      setForm({
+        title: '',
+        description: '',
+        type: 'FUNCTIONAL',
+        priority: 'MEDIUM',
+        parentRequirementId: '',
+        assignedTo: '',
+        dueDate: '',
+        requirementLevel: 'PRD',
+      });
     },
   });
 
@@ -103,6 +135,16 @@ export function RequirementListPage() {
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
+        <select
+          value={requirementLevel}
+          onChange={(e) => setRequirementLevel(e.target.value)}
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+        >
+          <option value="">전체 문서 레벨</option>
+          {REQUIREMENT_LEVEL_OPTIONS.map((l) => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
         <input
           type="text"
           value={keyword}
@@ -118,6 +160,7 @@ export function RequirementListPage() {
             <tr>
               <th className="px-3 py-2">키</th>
               <th className="px-3 py-2">제목</th>
+              <th className="px-3 py-2">문서 레벨</th>
               <th className="px-3 py-2">유형</th>
               <th className="px-3 py-2">우선순위</th>
               <th className="px-3 py-2">상태</th>
@@ -137,6 +180,11 @@ export function RequirementListPage() {
                   {r.parentRequirementId && <span className="mr-1 text-slate-300">└</span>}
                   {r.title}
                 </td>
+                <td className="px-3 py-2">
+                  <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    {r.requirementLevel}
+                  </span>
+                </td>
                 <td className="px-3 py-2">{r.type}</td>
                 <td className="px-3 py-2"><PriorityBadge priority={r.priority} /></td>
                 <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
@@ -146,7 +194,7 @@ export function RequirementListPage() {
             ))}
             {requirements.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
                   요구사항이 없습니다.
                 </td>
               </tr>
@@ -163,88 +211,223 @@ export function RequirementListPage() {
               createMutation.mutate();
             }}
           >
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">제목</label>
-              <input
-                type="text"
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">설명</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={3}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">유형</label>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">우선순위</label>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">상위 요구사항</label>
-                <select
-                  value={form.parentRequirementId}
-                  onChange={(e) => setForm({ ...form, parentRequirementId: e.target.value })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">없음</option>
-                  {requirements.map((r) => (
-                    <option key={r.id} value={r.id}>{r.reqKey}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">담당자</label>
-                <select
-                  value={form.assignedTo}
-                  onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">미지정</option>
-                  {membersQuery.data?.map((m) => (
-                    <option key={m.userId} value={m.userId}>{m.fullName}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="mb-1 block text-sm text-slate-600">마감일</label>
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
+            <DynamicStandardFieldsLayout
+              layout={layoutQuery.data}
+              fieldRenderers={{
+                title: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                description: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                type: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">유형</label>
+                    <select
+                      value={form.type}
+                      onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {TYPE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                priority: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                    <select
+                      value={form.priority}
+                      onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {PRIORITY_OPTIONS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                parentRequirementId: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">상위 요구사항</label>
+                    <select
+                      value={form.parentRequirementId}
+                      onChange={(e) => handleParentChange(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">없음</option>
+                      {requirements.map((r) => (
+                        <option key={r.id} value={r.id}>{r.reqKey}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                assignedTo: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">담당자</label>
+                    <select
+                      value={form.assignedTo}
+                      onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">미지정</option>
+                      {membersQuery.data?.map((m) => (
+                        <option key={m.userId} value={m.userId}>{m.fullName}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                requirementLevel: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">문서 레벨 (PRD/SRS)</label>
+                    <select
+                      value={form.requirementLevel}
+                      onChange={(e) => setForm({ ...form, requirementLevel: e.target.value as RequirementLevel })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {REQUIREMENT_LEVEL_OPTIONS.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-400">
+                      제품 수준 문서면 PRD, 소프트웨어 수준 문서면 SRS를 선택하세요. 위의 "유형"(성격 분류)과는 다른
+                      축입니다. 상위 요구사항을 선택하면 SRS가 기본으로 채워지지만 자유롭게 바꿀 수 있습니다.
+                    </p>
+                  </div>
+                ),
+                dueDate: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">마감일</label>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+              }}
+              fallback={
+                <>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">유형</label>
+                      <select
+                        value={form.type}
+                        onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {TYPE_OPTIONS.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                      <select
+                        value={form.priority}
+                        onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mb-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">상위 요구사항</label>
+                      <select
+                        value={form.parentRequirementId}
+                        onChange={(e) => handleParentChange(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">없음</option>
+                        {requirements.map((r) => (
+                          <option key={r.id} value={r.id}>{r.reqKey}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">담당자</label>
+                      <select
+                        value={form.assignedTo}
+                        onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">미지정</option>
+                        {membersQuery.data?.map((m) => (
+                          <option key={m.userId} value={m.userId}>{m.fullName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">문서 레벨 (PRD/SRS)</label>
+                    <select
+                      value={form.requirementLevel}
+                      onChange={(e) => setForm({ ...form, requirementLevel: e.target.value as RequirementLevel })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {REQUIREMENT_LEVEL_OPTIONS.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-400">
+                      제품 수준 문서면 PRD, 소프트웨어 수준 문서면 SRS를 선택하세요. 위의 "유형"(성격 분류)과는 다른 축입니다. 상위
+                      요구사항을 선택하면 SRS가 기본으로 채워지지만 자유롭게 바꿀 수 있습니다.
+                    </p>
+                  </div>
+                  <div className="mb-4">
+                    <label className="mb-1 block text-sm text-slate-600">마감일</label>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              }
+            />
             <button
               type="submit"
               disabled={createMutation.isPending}

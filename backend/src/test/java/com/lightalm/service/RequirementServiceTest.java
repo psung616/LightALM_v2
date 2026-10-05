@@ -20,10 +20,12 @@ import com.lightalm.dto.ChangeRequirementStatusRequest;
 import com.lightalm.dto.CreateRequirementRequest;
 import com.lightalm.dto.RequirementResponse;
 import com.lightalm.dto.UpdateRequirementRequest;
+import com.lightalm.enumeration.service.EnumerationValueValidator;
 import com.lightalm.exception.ValidationException;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.workflow.service.WorkflowTransitionPolicy;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,10 @@ class RequirementServiceTest {
     private ProjectMemberService projectMemberService;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private EnumerationValueValidator enumerationValueValidator;
+    @Mock
+    private WorkflowTransitionPolicy workflowTransitionPolicy;
 
     @InjectMocks
     private RequirementService requirementService;
@@ -89,8 +95,26 @@ class RequirementServiceTest {
 
         assertThat(response.getReqKey()).isEqualTo("LALM-R1");
         assertThat(response.getStatus()).isEqualTo(RequirementStatus.DRAFT);
-        assertThat(response.getPriority()).isEqualTo(Priority.MEDIUM);
+        assertThat(response.getPriority()).isEqualTo(Priority.MEDIUM.name());
         verify(projectMemberService).requireRole(10L, principal, ProjectRole.MEMBER);
+        verify(enumerationValueValidator).requireValidValue(10L, "PRIORITY", "MEDIUM");
+    }
+
+    @Test
+    void create_whenEnumerationValidatorRejectsPriority_propagatesException() {
+        CreateRequirementRequest request = new CreateRequirementRequest();
+        request.setTitle("로그인 기능");
+        request.setType(RequirementType.FUNCTIONAL);
+        request.setPriority("BLOCKER");
+
+        when(projectService.getEntity(10L)).thenReturn(project);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        org.mockito.Mockito.doThrow(new ValidationException("유효하지 않은 PRIORITY 값입니다: BLOCKER"))
+                .when(enumerationValueValidator).requireValidValue(10L, "PRIORITY", "BLOCKER");
+
+        assertThatThrownBy(() -> requirementService.create(10L, request, principal))
+                .isInstanceOf(ValidationException.class);
+        verify(requirementRepository, org.mockito.Mockito.never()).save(any(Requirement.class));
     }
 
     @Test
@@ -130,6 +154,25 @@ class RequirementServiceTest {
         RequirementResponse response = requirementService.changeStatus(10L, 8L, request, principal);
 
         assertThat(response.getStatus()).isEqualTo(RequirementStatus.IN_PROGRESS);
+        verify(workflowTransitionPolicy).requireAllowedTransition(
+                10L, com.lightalm.domain.TargetType.REQUIREMENT, "APPROVED", "IN_PROGRESS", principal);
+    }
+
+    /** ADR-012 §D 회귀 테스트: 워크플로우 정책이 거부하면 changeStatus 전체가 실패해야 한다. */
+    @Test
+    void changeStatus_whenWorkflowPolicyRejects_propagatesException() {
+        Requirement existing = Requirement.builder().id(11L).project(project).reqKey("LALM-R11")
+                .status(RequirementStatus.APPROVED).build();
+        when(requirementRepository.findById(11L)).thenReturn(Optional.of(existing));
+        ChangeRequirementStatusRequest request = new ChangeRequirementStatusRequest();
+        request.setStatus(RequirementStatus.IN_PROGRESS);
+        org.mockito.Mockito.doThrow(new ValidationException("전이가 허용되지 않습니다."))
+                .when(workflowTransitionPolicy)
+                .requireAllowedTransition(10L, com.lightalm.domain.TargetType.REQUIREMENT, "APPROVED", "IN_PROGRESS", principal);
+
+        assertThatThrownBy(() -> requirementService.changeStatus(10L, 11L, request, principal))
+                .isInstanceOf(ValidationException.class);
+        assertThat(existing.getStatus()).isEqualTo(RequirementStatus.APPROVED);
     }
 
     @Test

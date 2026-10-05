@@ -1,6 +1,6 @@
 package com.lightalm.web;
 
-import com.lightalm.domain.Priority;
+import com.lightalm.domain.RequirementLevel;
 import com.lightalm.domain.RequirementStatus;
 import com.lightalm.domain.RequirementType;
 import com.lightalm.dto.ApprovalRequestResponse;
@@ -50,13 +50,16 @@ public class RequirementController {
     public PageResponse<RequirementResponse> list(@PathVariable Long projectId,
                                                     @RequestParam(required = false) RequirementStatus status,
                                                     @RequestParam(required = false) RequirementType type,
-                                                    @RequestParam(required = false) Priority priority,
+                                                    @RequestParam(required = false) String priority,
                                                     @RequestParam(required = false) Long parentId,
                                                     @RequestParam(required = false) Long assignedTo,
                                                     @RequestParam(required = false) String keyword,
+                                                    @RequestParam(required = false) RequirementLevel requirementLevel,
+                                                    @RequestParam(required = false) Boolean rootOnly,
                                                     @AuthenticationPrincipal UserPrincipal principal,
                                                     Pageable pageable) {
-        return requirementService.list(projectId, status, type, priority, parentId, assignedTo, keyword, principal, pageable);
+        return requirementService.list(projectId, status, type, priority, parentId, assignedTo, keyword,
+                requirementLevel, rootOnly, principal, pageable);
     }
 
     @PostMapping

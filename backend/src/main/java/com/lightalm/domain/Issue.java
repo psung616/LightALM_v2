@@ -51,10 +51,14 @@ public class Issue {
     @Column(nullable = false, length = 20)
     private IssueType type;
 
-    @Enumerated(EnumType.STRING)
+    /**
+     * ADR-012 §C.3: DB CHECK 제약이 제거되어 더 이상 고정 Java enum이 아니다(V15).
+     * 프로젝트별 PRIORITY 확장 값을 그대로 저장할 수 있도록 String으로 보관하고,
+     * 유효성 검증은 {@code EnumerationValueValidator.requireValidValue}가 전담한다.
+     */
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private Priority priority = Priority.MEDIUM;
+    private String priority = Priority.MEDIUM.name();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

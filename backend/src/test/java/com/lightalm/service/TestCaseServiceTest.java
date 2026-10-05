@@ -14,6 +14,7 @@ import com.lightalm.domain.TestCaseStatus;
 import com.lightalm.domain.User;
 import com.lightalm.dto.CreateTestCaseRequest;
 import com.lightalm.dto.TestCaseResponse;
+import com.lightalm.enumeration.service.EnumerationValueValidator;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.TestCaseRepository;
 import com.lightalm.repository.UserRepository;
@@ -40,6 +41,8 @@ class TestCaseServiceTest {
     private ProjectService projectService;
     @Mock
     private ProjectMemberService projectMemberService;
+    @Mock
+    private EnumerationValueValidator enumerationValueValidator;
 
     @InjectMocks
     private TestCaseService testCaseService;
@@ -85,8 +88,27 @@ class TestCaseServiceTest {
 
         assertThat(response.getTcKey()).isEqualTo("LALM-TC1");
         assertThat(response.getStatus()).isEqualTo(TestCaseStatus.DRAFT);
-        assertThat(response.getPriority()).isEqualTo(Priority.MEDIUM);
+        assertThat(response.getPriority()).isEqualTo(Priority.MEDIUM.name());
         verify(projectMemberService).requireRole(10L, principal, ProjectRole.MEMBER);
+        verify(enumerationValueValidator).requireValidValue(10L, "PRIORITY", "MEDIUM");
+    }
+
+    @Test
+    void create_whenEnumerationValidatorRejectsPriority_propagatesException() {
+        CreateTestCaseRequest request = new CreateTestCaseRequest();
+        request.setTitle("로그인 성공 검증");
+        request.setSteps("1. 로그인 화면 접속\n2. 아이디/비밀번호 입력\n3. 로그인 버튼 클릭");
+        request.setExpectedResult("대시보드로 이동한다");
+        request.setPriority("BLOCKER");
+
+        when(projectService.getEntity(10L)).thenReturn(project);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        org.mockito.Mockito.doThrow(new com.lightalm.exception.ValidationException("유효하지 않은 PRIORITY 값입니다: BLOCKER"))
+                .when(enumerationValueValidator).requireValidValue(10L, "PRIORITY", "BLOCKER");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> testCaseService.create(10L, request, principal))
+                .isInstanceOf(com.lightalm.exception.ValidationException.class);
+        verify(testCaseRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any(TestCase.class));
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.lightalm.dto;
 
-import com.lightalm.domain.Priority;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -24,7 +23,8 @@ public class CreateTestCaseRequest {
     @NotBlank(message = "expectedResult는 필수입니다.")
     private String expectedResult;
 
-    private Priority priority;
+    /** ADR-012 §C.3: 프로젝트가 PRIORITY 집합을 확장했으면 그 값도 허용된다(검증은 서비스 레이어). */
+    private String priority;
 
     private Long requirementId;
 }

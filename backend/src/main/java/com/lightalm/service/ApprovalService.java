@@ -21,6 +21,7 @@ import com.lightalm.repository.ApprovalRequestRepository;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.workflow.service.WorkflowTransitionPolicy;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +39,7 @@ public class ApprovalService {
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
     private final AuditLogService auditLogService;
+    private final WorkflowTransitionPolicy workflowTransitionPolicy;
 
     @Transactional
     public ApprovalRequestResponse create(Long projectId, Long reqId, CreateApprovalRequestRequest request, UserPrincipal principal) {
@@ -96,6 +98,17 @@ public class ApprovalService {
 
         if (request.getDecision() == ApprovalDecision.APPROVE) {
             RequirementStatus oldStatus = requirement.getStatus();
+            // ADR-012 §D.3 AND 조건: 승인 요청이 APPROVED로 결정되는 이 지점에서 워크플로우
+            // 화이트리스트도 함께 통과해야 한다. 둘 중 하나라도 막으면 전체 decide() 호출이
+            // 롤백되어(요구사항 상태/승인 상태 둘 다 변경되지 않음) 전이가 거부된다.
+            //
+            // requireAllowedTransition(principal 포함 버전)이 아니라 requireRegisteredTransition을
+            // 쓴다 — 이 메서드는 PROJECT_ADMIN 이상만 호출 가능한데, requireAllowedTransition의
+            // "시스템 ADMIN/PROJECT_ADMIN은 화이트리스트 무관 항상 통과" lock-out 방지 우회를
+            // 그대로 쓰면 모든 실제 호출자가 우회에 걸려 체크가 전혀 작동하지 않는다
+            // (qa-tester 2026-10-05 실제 Postgres+API 검증에서 발견).
+            workflowTransitionPolicy.requireRegisteredTransition(
+                    projectId, TargetType.REQUIREMENT, oldStatus.name(), approval.getRequestedStatus().name());
             requirement.setStatus(approval.getRequestedStatus());
             approval.setStatus(ApprovalStatus.APPROVED);
             auditLogService.recordIfChanged(projectId, AuditTargetType.REQUIREMENT, requirement.getId(), principal.getId(),

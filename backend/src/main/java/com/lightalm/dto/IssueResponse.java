@@ -3,7 +3,6 @@ package com.lightalm.dto;
 import com.lightalm.domain.Issue;
 import com.lightalm.domain.IssueStatus;
 import com.lightalm.domain.IssueType;
-import com.lightalm.domain.Priority;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.Builder;
@@ -18,7 +17,7 @@ public class IssueResponse {
     private String title;
     private String description;
     private IssueType type;
-    private Priority priority;
+    private String priority;
     private IssueStatus status;
     private Long reporterId;
     private String reporterName;

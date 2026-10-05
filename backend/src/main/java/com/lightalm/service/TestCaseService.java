@@ -11,6 +11,7 @@ import com.lightalm.dto.CreateTestCaseRequest;
 import com.lightalm.dto.PageResponse;
 import com.lightalm.dto.TestCaseResponse;
 import com.lightalm.dto.UpdateTestCaseRequest;
+import com.lightalm.enumeration.service.EnumerationValueValidator;
 import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.repository.RequirementRepository;
 import com.lightalm.repository.TestCaseRepository;
@@ -34,9 +35,10 @@ public class TestCaseService {
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
+    private final EnumerationValueValidator enumerationValueValidator;
 
     @Transactional(readOnly = true)
-    public PageResponse<TestCaseResponse> list(Long projectId, Long requirementId, TestCaseStatus status, Priority priority,
+    public PageResponse<TestCaseResponse> list(Long projectId, Long requirementId, TestCaseStatus status, String priority,
                                                  String keyword, UserPrincipal principal, Pageable pageable) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.VIEWER);
         Specification<TestCase> spec = (root, query, cb) -> cb.equal(root.get("project").get("id"), projectId);
@@ -89,6 +91,9 @@ public class TestCaseService {
                 .orElseThrow(() -> new ResourceNotFoundException("사용자를 찾을 수 없습니다: " + principal.getId()));
         Requirement requirement = resolveRequirement(projectId, request.getRequirementId());
 
+        String priority = request.getPriority() != null ? request.getPriority() : Priority.MEDIUM.name();
+        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", priority);
+
         String tcKey = projectService.nextTestCaseKey(projectId);
         TestCase testCase = TestCase.builder()
                 .project(project)
@@ -99,7 +104,7 @@ public class TestCaseService {
                 .preconditions(request.getPreconditions())
                 .steps(request.getSteps())
                 .expectedResult(request.getExpectedResult())
-                .priority(request.getPriority() != null ? request.getPriority() : Priority.MEDIUM)
+                .priority(priority)
                 .createdBy(creator)
                 .build();
         return TestCaseResponse.from(testCaseRepository.save(testCase));
@@ -111,12 +116,15 @@ public class TestCaseService {
         TestCase testCase = getEntity(projectId, tcId);
         Requirement requirement = resolveRequirement(projectId, request.getRequirementId());
 
+        String newPriority = request.getPriority() != null ? request.getPriority() : testCase.getPriority();
+        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", newPriority);
+
         testCase.setTitle(request.getTitle());
         testCase.setDescription(request.getDescription());
         testCase.setPreconditions(request.getPreconditions());
         testCase.setSteps(request.getSteps());
         testCase.setExpectedResult(request.getExpectedResult());
-        testCase.setPriority(request.getPriority() != null ? request.getPriority() : testCase.getPriority());
+        testCase.setPriority(newPriority);
         testCase.setRequirement(requirement);
         if (request.getStatus() != null) {
             testCase.setStatus(request.getStatus());

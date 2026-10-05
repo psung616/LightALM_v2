@@ -15,16 +15,20 @@ import { listGitLinks, createGitLink } from '../../api/integration';
 import { listTestCasesForRequirement } from '../../api/testCase';
 import { listAuditLogsForTarget } from '../../api/auditLog';
 import { createApprovalRequest } from '../../api/approval';
-import type { LinkType, Priority, RequirementStatus, RequirementType } from '../../types/common';
+import { getFormLayoutForRender } from '../../api/formLayout';
+import type { LinkType, Priority, RequirementLevel, RequirementStatus, RequirementType } from '../../types/common';
 import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { REQUIREMENT_BRANCH_STAGE, REQUIREMENT_MAIN_STAGES, WorkflowChart } from '../../components/WorkflowChart';
 import { TraceabilityTreeView } from '../../components/TraceabilityTreeView';
 import { FullScreenLoader } from '../../components/FullScreenLoader';
 import { AuditLogList } from '../../components/AuditLogList';
+import { CustomFieldsPanel } from '../../components/CustomFieldsPanel';
+import { DynamicStandardFieldsLayout } from '../../components/DynamicStandardFieldsLayout';
 
 const STATUS_OPTIONS: RequirementStatus[] = ['DRAFT', 'APPROVED', 'IN_PROGRESS', 'IMPLEMENTED', 'VERIFIED', 'REJECTED'];
 const TYPE_OPTIONS: RequirementType[] = ['FUNCTIONAL', 'NON_FUNCTIONAL', 'BUSINESS'];
 const PRIORITY_OPTIONS: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const REQUIREMENT_LEVEL_OPTIONS: RequirementLevel[] = ['PRD', 'SRS'];
 const LINK_TYPE_OPTIONS: LinkType[] = ['IMPLEMENTS', 'TESTS', 'DEPENDS_ON', 'RELATES_TO', 'DUPLICATES'];
 
 export function RequirementDetailPage() {
@@ -89,18 +93,40 @@ export function RequirementDetailPage() {
     enabled: Number.isFinite(id) && Number.isFinite(rid),
   });
 
-  const [form, setForm] = useState<{ title: string; description: string; type: RequirementType; priority: Priority; dueDate: string }>({
+  // ADR-012 §B(Phase 21): 레이아웃이 설정되지 않은 프로젝트는 기존과 동일한 고정 편집 폼이 그대로 보인다.
+  const layoutQuery = useQuery({
+    queryKey: ['project', id, 'form-layouts', 'REQUIREMENT'],
+    queryFn: () => getFormLayoutForRender(id, 'REQUIREMENT'),
+    enabled: Number.isFinite(id),
+  });
+
+  const [form, setForm] = useState<{
+    title: string;
+    description: string;
+    type: RequirementType;
+    priority: Priority;
+    dueDate: string;
+    requirementLevel: RequirementLevel;
+  }>({
     title: '',
     description: '',
     type: 'FUNCTIONAL',
     priority: 'MEDIUM',
     dueDate: '',
+    requirementLevel: 'SRS',
   });
 
   function startEdit() {
     if (!requirementQuery.data) return;
     const r = requirementQuery.data;
-    setForm({ title: r.title, description: r.description ?? '', type: r.type, priority: r.priority, dueDate: r.dueDate ?? '' });
+    setForm({
+      title: r.title,
+      description: r.description ?? '',
+      type: r.type,
+      priority: r.priority,
+      dueDate: r.dueDate ?? '',
+      requirementLevel: r.requirementLevel,
+    });
     setEditing(true);
   }
 
@@ -114,6 +140,7 @@ export function RequirementDetailPage() {
         parentRequirementId: requirementQuery.data?.parentRequirementId ?? undefined,
         assignedTo: requirementQuery.data?.assignedToId ?? undefined,
         dueDate: form.dueDate || undefined,
+        requirementLevel: form.requirementLevel,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requirement', rid] });
@@ -192,6 +219,9 @@ export function RequirementDetailPage() {
           <h1 className="text-xl font-semibold text-slate-900">{r.title}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            {r.requirementLevel}
+          </span>
           <PriorityBadge priority={r.priority} />
           <StatusBadge status={r.status} />
         </div>
@@ -222,7 +252,13 @@ export function RequirementDetailPage() {
             </select>
           </div>
         </div>
-        <WorkflowChart mainStages={REQUIREMENT_MAIN_STAGES} branchStage={REQUIREMENT_BRANCH_STAGE} current={r.status} />
+        <WorkflowChart
+          mainStages={REQUIREMENT_MAIN_STAGES}
+          branchStage={REQUIREMENT_BRANCH_STAGE}
+          current={r.status}
+          projectId={id}
+          targetType="REQUIREMENT"
+        />
       </div>
 
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
@@ -236,59 +272,159 @@ export function RequirementDetailPage() {
         </div>
         {editing ? (
           <div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">제목</label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">설명</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={4}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3 grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">유형</label>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">우선순위</label>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">마감일</label>
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
+            <DynamicStandardFieldsLayout
+              layout={layoutQuery.data}
+              fieldRenderers={{
+                title: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                description: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={4}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                type: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">유형</label>
+                    <select
+                      value={form.type}
+                      onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {TYPE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                priority: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                    <select
+                      value={form.priority}
+                      onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {PRIORITY_OPTIONS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                dueDate: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">마감일</label>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                requirementLevel: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">문서 레벨 (PRD/SRS)</label>
+                    <select
+                      value={form.requirementLevel}
+                      onChange={(e) => setForm({ ...form, requirementLevel: e.target.value as RequirementLevel })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {REQUIREMENT_LEVEL_OPTIONS.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-400">
+                      위의 "유형"(성격 분류)과는 다른 축으로, 제품 수준 문서면 PRD, 소프트웨어 수준 문서면 SRS입니다.
+                    </p>
+                  </div>
+                ),
+              }}
+              fallback={
+                <>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={4}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3 grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">유형</label>
+                      <select
+                        value={form.type}
+                        onChange={(e) => setForm({ ...form, type: e.target.value as RequirementType })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {TYPE_OPTIONS.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                      <select
+                        value={form.priority}
+                        onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">마감일</label>
+                      <input
+                        type="date"
+                        value={form.dueDate}
+                        onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">문서 레벨 (PRD/SRS)</label>
+                    <select
+                      value={form.requirementLevel}
+                      onChange={(e) => setForm({ ...form, requirementLevel: e.target.value as RequirementLevel })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {REQUIREMENT_LEVEL_OPTIONS.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-400">위의 "유형"(성격 분류)과는 다른 축으로, 제품 수준 문서면 PRD, 소프트웨어 수준 문서면 SRS입니다.</p>
+                  </div>
+                </>
+              }
+            />
             <div className="flex gap-2">
               <button
                 type="button"
@@ -314,6 +450,10 @@ export function RequirementDetailPage() {
               <dd className="text-slate-700">{r.type}</dd>
             </div>
             <div>
+              <dt className="text-slate-400">문서 레벨</dt>
+              <dd className="text-slate-700">{r.requirementLevel}</dd>
+            </div>
+            <div>
               <dt className="text-slate-400">담당자</dt>
               <dd className="text-slate-700">{r.assignedToName ?? '-'}</dd>
             </div>
@@ -324,6 +464,8 @@ export function RequirementDetailPage() {
           </dl>
         )}
       </div>
+
+      <CustomFieldsPanel projectId={id} targetType="requirements" targetId={rid} />
 
       <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -377,6 +519,7 @@ export function RequirementDetailPage() {
           {linksQuery.data?.map((link) => (
             <li key={link.linkId} className="flex items-center justify-between text-sm">
               <span>
+                <span className="mr-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-500">{link.linkedType}</span>
                 <span className="mr-2 font-medium text-slate-700">{link.linkedKey}</span>
                 {link.linkedTitle}
                 <span className="ml-2 text-xs text-slate-400">({link.linkType})</span>

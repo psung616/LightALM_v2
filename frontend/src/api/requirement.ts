@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PageResponse, Priority, RequirementStatus, RequirementType } from '../types/common';
+import type { PageResponse, Priority, RequirementLevel, RequirementStatus, RequirementType } from '../types/common';
 import type { Requirement, RequirementLink, TraceabilityTree } from '../types/requirement';
 
 export interface RequirementFilters {
@@ -9,6 +9,8 @@ export interface RequirementFilters {
   parentId?: number;
   assignedTo?: number;
   keyword?: string;
+  requirementLevel?: RequirementLevel;
+  rootOnly?: boolean;
   page?: number;
   size?: number;
 }
@@ -21,6 +23,7 @@ export interface CreateRequirementRequest {
   parentRequirementId?: number;
   assignedTo?: number;
   dueDate?: string;
+  requirementLevel?: RequirementLevel;
 }
 
 export type UpdateRequirementRequest = CreateRequirementRequest;

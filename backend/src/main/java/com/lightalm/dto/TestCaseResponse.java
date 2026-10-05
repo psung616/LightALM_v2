@@ -1,6 +1,5 @@
 package com.lightalm.dto;
 
-import com.lightalm.domain.Priority;
 import com.lightalm.domain.TestCase;
 import com.lightalm.domain.TestCaseStatus;
 import java.time.LocalDateTime;
@@ -20,7 +19,7 @@ public class TestCaseResponse {
     private String preconditions;
     private String steps;
     private String expectedResult;
-    private Priority priority;
+    private String priority;
     private TestCaseStatus status;
     private Long createdById;
     private String createdByName;

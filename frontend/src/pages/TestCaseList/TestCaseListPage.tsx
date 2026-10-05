@@ -3,9 +3,11 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createTestCase, listTestCases } from '../../api/testCase';
 import { listRequirements } from '../../api/requirement';
+import { getFormLayoutForRender } from '../../api/formLayout';
 import type { Priority, TestCaseStatus } from '../../types/common';
 import { PriorityBadge, StatusBadge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
+import { DynamicStandardFieldsLayout } from '../../components/DynamicStandardFieldsLayout';
 
 const STATUS_OPTIONS: TestCaseStatus[] = ['DRAFT', 'READY', 'DEPRECATED'];
 const PRIORITY_OPTIONS: Priority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
@@ -35,6 +37,13 @@ export function TestCaseListPage() {
   const requirementsQuery = useQuery({
     queryKey: ['project', id, 'requirements', 'all'],
     queryFn: () => listRequirements(id, { size: 200 }),
+    enabled: Number.isFinite(id),
+  });
+
+  // ADR-012 §B(Phase 21): 레이아웃이 설정되지 않은 프로젝트는 기존과 동일한 고정 폼이 그대로 보인다.
+  const layoutQuery = useQuery({
+    queryKey: ['project', id, 'form-layouts', 'TEST_CASE'],
+    queryFn: () => getFormLayoutForRender(id, 'TEST_CASE'),
     enabled: Number.isFinite(id),
   });
 
@@ -147,81 +156,177 @@ export function TestCaseListPage() {
               createMutation.mutate();
             }}
           >
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">제목</label>
-              <input
-                type="text"
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">설명</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={2}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">사전 조건</label>
-              <textarea
-                value={form.preconditions}
-                onChange={(e) => setForm({ ...form, preconditions: e.target.value })}
-                rows={2}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">절차</label>
-              <textarea
-                required
-                value={form.steps}
-                onChange={(e) => setForm({ ...form, steps: e.target.value })}
-                rows={3}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-sm text-slate-600">예상 결과</label>
-              <textarea
-                required
-                value={form.expectedResult}
-                onChange={(e) => setForm({ ...form, expectedResult: e.target.value })}
-                rows={2}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">우선순위</label>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">연결할 요구사항</label>
-                <select
-                  value={form.requirementId}
-                  onChange={(e) => setForm({ ...form, requirementId: e.target.value })}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">없음</option>
-                  {requirementsQuery.data?.content.map((r) => (
-                    <option key={r.id} value={r.id}>{r.reqKey} - {r.title}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <DynamicStandardFieldsLayout
+              layout={layoutQuery.data}
+              fieldRenderers={{
+                title: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                description: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                preconditions: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">사전 조건</label>
+                    <textarea
+                      value={form.preconditions}
+                      onChange={(e) => setForm({ ...form, preconditions: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                steps: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">절차</label>
+                    <textarea
+                      required
+                      value={form.steps}
+                      onChange={(e) => setForm({ ...form, steps: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                expectedResult: () => (
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">예상 결과</label>
+                    <textarea
+                      required
+                      value={form.expectedResult}
+                      onChange={(e) => setForm({ ...form, expectedResult: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                ),
+                priority: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                    <select
+                      value={form.priority}
+                      onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      {PRIORITY_OPTIONS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                requirementId: () => (
+                  <div>
+                    <label className="mb-1 block text-sm text-slate-600">연결할 요구사항</label>
+                    <select
+                      value={form.requirementId}
+                      onChange={(e) => setForm({ ...form, requirementId: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">없음</option>
+                      {requirementsQuery.data?.content.map((r) => (
+                        <option key={r.id} value={r.id}>{r.reqKey} - {r.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+              }}
+              fallback={
+                <>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">제목</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">설명</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">사전 조건</label>
+                    <textarea
+                      value={form.preconditions}
+                      onChange={(e) => setForm({ ...form, preconditions: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">절차</label>
+                    <textarea
+                      required
+                      value={form.steps}
+                      onChange={(e) => setForm({ ...form, steps: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="mb-1 block text-sm text-slate-600">예상 결과</label>
+                    <textarea
+                      required
+                      value={form.expectedResult}
+                      onChange={(e) => setForm({ ...form, expectedResult: e.target.value })}
+                      rows={2}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mb-4 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">우선순위</label>
+                      <select
+                        value={form.priority}
+                        onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm text-slate-600">연결할 요구사항</label>
+                      <select
+                        value={form.requirementId}
+                        onChange={(e) => setForm({ ...form, requirementId: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="">없음</option>
+                        {requirementsQuery.data?.content.map((r) => (
+                          <option key={r.id} value={r.id}>{r.reqKey} - {r.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              }
+            />
             <button
               type="submit"
               disabled={createMutation.isPending}

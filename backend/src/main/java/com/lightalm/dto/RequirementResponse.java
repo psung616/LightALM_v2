@@ -1,7 +1,7 @@
 package com.lightalm.dto;
 
-import com.lightalm.domain.Priority;
 import com.lightalm.domain.Requirement;
+import com.lightalm.domain.RequirementLevel;
 import com.lightalm.domain.RequirementStatus;
 import com.lightalm.domain.RequirementType;
 import java.time.LocalDate;
@@ -18,8 +18,9 @@ public class RequirementResponse {
     private String title;
     private String description;
     private RequirementType type;
-    private Priority priority;
+    private String priority;
     private RequirementStatus status;
+    private RequirementLevel requirementLevel;
     private Long parentRequirementId;
     private String parentRequirementKey;
     private Long createdById;
@@ -40,6 +41,7 @@ public class RequirementResponse {
                 .type(r.getType())
                 .priority(r.getPriority())
                 .status(r.getStatus())
+                .requirementLevel(r.getRequirementLevel())
                 .parentRequirementId(r.getParentRequirement() != null ? r.getParentRequirement().getId() : null)
                 .parentRequirementKey(r.getParentRequirement() != null ? r.getParentRequirement().getReqKey() : null)
                 .createdById(r.getCreatedBy() != null ? r.getCreatedBy().getId() : null)

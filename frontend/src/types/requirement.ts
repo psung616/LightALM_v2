@@ -1,4 +1,4 @@
-import type { Priority, RequirementStatus, RequirementType } from './common';
+import type { Priority, RequirementLevel, RequirementStatus, RequirementType } from './common';
 
 export interface Requirement {
   id: number;
@@ -9,6 +9,7 @@ export interface Requirement {
   type: RequirementType;
   priority: Priority;
   status: RequirementStatus;
+  requirementLevel: RequirementLevel;
   parentRequirementId: number | null;
   parentRequirementKey: string | null;
   createdById: number | null;
@@ -22,7 +23,7 @@ export interface Requirement {
 
 export interface RequirementLink {
   linkId: number;
-  linkedType: 'REQUIREMENT' | 'ISSUE';
+  linkedType: 'REQUIREMENT' | 'ISSUE' | 'TEST_CASE';
   linkedId: number;
   linkedKey: string;
   linkedTitle: string;

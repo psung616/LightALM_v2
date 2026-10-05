@@ -1,6 +1,6 @@
 package com.lightalm.dto;
 
-import com.lightalm.domain.Priority;
+import com.lightalm.domain.RequirementLevel;
 import com.lightalm.domain.RequirementType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,11 +22,15 @@ public class UpdateRequirementRequest {
     @NotNull(message = "type은 필수입니다.")
     private RequirementType type;
 
-    private Priority priority;
+    /** ADR-012 §C.3: 프로젝트가 PRIORITY 집합을 확장했으면 그 값도 허용된다(검증은 서비스 레이어). */
+    private String priority;
 
     private Long parentRequirementId;
 
     private Long assignedTo;
 
     private LocalDate dueDate;
+
+    /** 생략 시 기존 값을 유지한다 (ADR-013). */
+    private RequirementLevel requirementLevel;
 }

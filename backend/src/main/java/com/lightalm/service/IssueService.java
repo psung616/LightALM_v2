@@ -8,16 +8,19 @@ import com.lightalm.domain.IssueType;
 import com.lightalm.domain.Priority;
 import com.lightalm.domain.Project;
 import com.lightalm.domain.ProjectRole;
+import com.lightalm.domain.TargetType;
 import com.lightalm.domain.User;
 import com.lightalm.dto.ChangeIssueStatusRequest;
 import com.lightalm.dto.CreateIssueRequest;
 import com.lightalm.dto.IssueResponse;
 import com.lightalm.dto.PageResponse;
 import com.lightalm.dto.UpdateIssueRequest;
+import com.lightalm.enumeration.service.EnumerationValueValidator;
 import com.lightalm.exception.ResourceNotFoundException;
 import com.lightalm.repository.IssueRepository;
 import com.lightalm.repository.UserRepository;
 import com.lightalm.security.UserPrincipal;
+import com.lightalm.workflow.service.WorkflowTransitionPolicy;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -38,9 +41,11 @@ public class IssueService {
     private final ProjectService projectService;
     private final ProjectMemberService projectMemberService;
     private final AuditLogService auditLogService;
+    private final EnumerationValueValidator enumerationValueValidator;
+    private final WorkflowTransitionPolicy workflowTransitionPolicy;
 
     @Transactional(readOnly = true)
-    public PageResponse<IssueResponse> list(Long projectId, IssueStatus status, IssueType type, Priority priority,
+    public PageResponse<IssueResponse> list(Long projectId, IssueStatus status, IssueType type, String priority,
                                              Long assigneeId, String keyword, UserPrincipal principal, Pageable pageable) {
         projectMemberService.requireRole(projectId, principal, ProjectRole.VIEWER);
         Specification<Issue> spec = (root, query, cb) -> cb.equal(root.get("project").get("id"), projectId);
@@ -82,6 +87,9 @@ public class IssueService {
                 .orElseThrow(() -> new ResourceNotFoundException("사용자를 찾을 수 없습니다: " + principal.getId()));
         User assignee = resolveAssignee(request.getAssigneeId());
 
+        String priority = request.getPriority() != null ? request.getPriority() : Priority.MEDIUM.name();
+        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", priority);
+
         String issueKey = projectService.nextIssueKey(projectId);
         Issue issue = Issue.builder()
                 .project(project)
@@ -89,7 +97,7 @@ public class IssueService {
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .type(request.getType())
-                .priority(request.getPriority() != null ? request.getPriority() : Priority.MEDIUM)
+                .priority(priority)
                 .reporter(reporter)
                 .assignee(assignee)
                 .dueDate(request.getDueDate())
@@ -108,14 +116,17 @@ public class IssueService {
         String oldTitle = issue.getTitle();
         String oldDescription = issue.getDescription();
         IssueType oldType = issue.getType();
-        Priority oldPriority = issue.getPriority();
+        String oldPriority = issue.getPriority();
         Long oldAssigneeId = issue.getAssignee() != null ? issue.getAssignee().getId() : null;
         LocalDate oldDueDate = issue.getDueDate();
+
+        String newPriority = request.getPriority() != null ? request.getPriority() : issue.getPriority();
+        enumerationValueValidator.requireValidValue(projectId, "PRIORITY", newPriority);
 
         issue.setTitle(request.getTitle());
         issue.setDescription(request.getDescription());
         issue.setType(request.getType());
-        issue.setPriority(request.getPriority() != null ? request.getPriority() : issue.getPriority());
+        issue.setPriority(newPriority);
         issue.setAssignee(resolveAssignee(request.getAssigneeId()));
         issue.setDueDate(request.getDueDate());
 
@@ -134,6 +145,8 @@ public class IssueService {
         projectMemberService.requireRole(projectId, principal, ProjectRole.MEMBER);
         Issue issue = getEntity(projectId, issueId);
         IssueStatus oldStatus = issue.getStatus();
+        workflowTransitionPolicy.requireAllowedTransition(
+                projectId, TargetType.ISSUE, oldStatus.name(), request.getStatus().name(), principal);
         issue.setStatus(request.getStatus());
         if (request.getStatus() == IssueStatus.DONE) {
             issue.setResolvedAt(LocalDateTime.now());

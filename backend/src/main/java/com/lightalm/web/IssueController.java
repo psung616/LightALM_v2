@@ -2,7 +2,6 @@ package com.lightalm.web;
 
 import com.lightalm.domain.IssueStatus;
 import com.lightalm.domain.IssueType;
-import com.lightalm.domain.Priority;
 import com.lightalm.dto.ChangeIssueStatusRequest;
 import com.lightalm.dto.CreateIssueRequest;
 import com.lightalm.dto.IssueResponse;
@@ -42,7 +41,7 @@ public class IssueController {
     public PageResponse<IssueResponse> list(@PathVariable Long projectId,
                                              @RequestParam(required = false) IssueStatus status,
                                              @RequestParam(required = false) IssueType type,
-                                             @RequestParam(required = false) Priority priority,
+                                             @RequestParam(required = false) String priority,
                                              @RequestParam(required = false) Long assigneeId,
                                              @RequestParam(required = false) String keyword,
                                              @AuthenticationPrincipal UserPrincipal principal,

@@ -20,6 +20,7 @@ export type ProjectStatus = 'ACTIVE' | 'ARCHIVED';
 
 export type RequirementType = 'FUNCTIONAL' | 'NON_FUNCTIONAL' | 'BUSINESS';
 export type RequirementStatus = 'DRAFT' | 'APPROVED' | 'IN_PROGRESS' | 'IMPLEMENTED' | 'VERIFIED' | 'REJECTED';
+export type RequirementLevel = 'PRD' | 'SRS';
 
 export type IssueType = 'BUG' | 'TASK' | 'STORY' | 'IMPROVEMENT';
 export type IssueStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'CLOSED';

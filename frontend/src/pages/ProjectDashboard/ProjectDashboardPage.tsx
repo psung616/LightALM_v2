@@ -71,6 +71,8 @@ export function ProjectDashboardPage() {
               branchStage={REQUIREMENT_BRANCH_STAGE}
               current=""
               counts={summary.requirementCountsByStatus}
+              projectId={id}
+              targetType="REQUIREMENT"
             />
           )}
         </section>
@@ -87,7 +89,13 @@ export function ProjectDashboardPage() {
               ))}
             </ul>
           ) : (
-            <WorkflowChart mainStages={ISSUE_MAIN_STAGES} current="" counts={summary.issueCountsByStatus} />
+            <WorkflowChart
+              mainStages={ISSUE_MAIN_STAGES}
+              current=""
+              counts={summary.issueCountsByStatus}
+              projectId={id}
+              targetType="ISSUE"
+            />
           )}
         </section>
 
