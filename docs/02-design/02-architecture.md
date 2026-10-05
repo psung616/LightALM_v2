@@ -63,7 +63,7 @@ light-alm/
 | 언어/런타임 | Java 21(실제 사용 버전), Node 20 |
 | 백엔드 프레임워크 | Spring Boot 3.3.x |
 | 웹 계층 | spring-boot-starter-web |
-| 인증 | spring-boot-starter-security (세션 기반, `HttpSession`) |
+| 인증 | spring-boot-starter-security (세션 기반, `HttpSession`. 세션 사용자의 `enabled`/`systemRole`은 요청마다 DB로 재검증 — `SessionPrincipalRefreshFilter`, ADR-016, 06-auth.md §6.4) |
 | ORM | spring-boot-starter-data-jpa (Hibernate) |
 | DB | PostgreSQL 15+, 드라이버 `org.postgresql:postgresql` |
 | 마이그레이션 | Flyway (`flyway-core`, `flyway-database-postgresql`) |

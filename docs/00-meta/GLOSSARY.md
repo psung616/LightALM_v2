@@ -42,8 +42,8 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 변형 (v3) | `Variant` | `variants` | product line, edition, flavor | |
 | 요구사항-변형 적용 (v3) | `RequirementVariant` | `requirement_variants` | variantMapping | |
 | 대시보드 위젯 설정 (v3) | `DashboardWidgetConfig` | `dashboard_widget_configs` | widget(단독), layout, preference | |
-| 라이센스 (v4) | `License` | `licenses` | key(단독), subscription | 시스템 전역 1건(`status='ACTIVE'`)만 유효, ADR-011 |
-| 회원가입 | `SelfSignup` (서비스/API 접두로만 사용, 엔티티는 기존 `User` 재사용) | — (`users` 테이블 그대로 사용) | registration, signUp(붙여쓰기) | 신규 컬럼 없음, ADR-011 |
+| ~~라이센스 (v4)~~ **폐기(ADR-015)** | `License` | `licenses` | key(단독), subscription | ADR-011 개념. ADR-015로 기능 제거 — 엔티티·코드 삭제, `licenses` 테이블은 DB에만 잔존(사용 안 함) |
+| ~~회원가입~~ **폐기(ADR-015)** | `SelfSignup` | — | registration, signUp(붙여쓰기) | ADR-011 개념. ADR-015로 제거 — 계정은 System Admin만 `POST /api/users`로 생성 |
 | 커스텀 필드 정의 (v4) | `CustomFieldDefinition` | `custom_field_definitions` | customField(단독, 값과 혼용 금지) | ADR-012 §A |
 | 커스텀 필드 값 (v4) | `CustomFieldValue` | `custom_field_values` | fieldValue, value(단독) | `CustomFieldDefinition`과 1:N, ADR-012 §A |
 | 폼 레이아웃 (v4) | `FormLayout` | `form_layouts` | layout(단독), view | 프로젝트+target_type당 1개, ADR-012 §B |
@@ -80,8 +80,8 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 
 | Enum | 값 |
 |---|---|
-| `SystemRole` (`users.system_role`) | `ADMIN`, `USER` |
-| `ProjectRole` (`project_members.role`) | `PROJECT_ADMIN`, `MEMBER`, `VIEWER` |
+| `SystemRole` (`users.system_role`) | `ADMIN`, `USER` — 화면 표시명: `ADMIN`=**System Admin**, `USER`=**User**(ADR-015 D1) |
+| `ProjectRole` (`project_members.role`) | `PROJECT_ADMIN`, `MEMBER`, `VIEWER` — 화면 표시명: `PROJECT_ADMIN`=**Project Admin**, `MEMBER`=**Project Assignable**, `VIEWER`=**Project User**(ADR-015 D1). ⚠️ 시스템 역할 `USER`("User")와 프로젝트 역할 `VIEWER`("Project User")는 다른 개념 |
 | `ProjectStatus` | `ACTIVE`, `ARCHIVED` |
 | `RequirementType` | `FUNCTIONAL`, `NON_FUNCTIONAL`, `BUSINESS` |
 | `RequirementStatus` | `DRAFT`, `APPROVED`, `IN_PROGRESS`, `IMPLEMENTED`, `VERIFIED`, `REJECTED` |
@@ -91,14 +91,14 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | `TestCaseStatus` | `DRAFT`, `READY`, `DEPRECATED` |
 | `LinkType` | `IMPLEMENTS`, `TESTS`, `DEPENDS_ON`, `RELATES_TO`, `DUPLICATES` |
 | `TargetType` (`com.lightalm.domain.TargetType`) | `REQUIREMENT`, `ISSUE`, `TEST_CASE` |
-| `AuditTargetType` (`audit_logs` 전용) | `REQUIREMENT`, `ISSUE`, `TEST_CASE`, `RELEASE`, `PROJECT`, `USER`, `TRACEABILITY_LINK` |
+| `AuditTargetType` (`audit_logs` 전용) | `REQUIREMENT`, `ISSUE`, `TEST_CASE`, `RELEASE`, `PROJECT`, `USER`, `TRACEABILITY_LINK`, `LICENSE` — `LICENSE`는 V10(ADR-011)에서 추가된 값으로 기존 표에서 누락돼 있었음. ADR-015 이후 신규 기록 없음, 과거 행 읽기용으로 enum 상수 유지 |
 | `AuditAction` | `CREATE`, `UPDATE`, `STATUS_CHANGE`, `DELETE`, `APPROVE`, `REJECT` |
 | `ApprovalStatus` | `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED` |
 | `RiskLikelihood` / `RiskImpact` (v3) | `LOW`, `MEDIUM`, `HIGH` |
 | `RiskStatus` (v3) | `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED` |
 | `Applicability` (v3) | `INCLUDED`, `EXCLUDED`, `MODIFIED` |
-| `LicenseType` (v4) | `TRIAL`, `STANDARD`, `ENTERPRISE` (메타데이터로만 저장, 기능 차등 적용 없음 — ADR-011 §2.2) |
-| `LicenseStatus` (v4) | `ACTIVE`, `SUPERSEDED`, `REVOKED` (`ACTIVE`는 항상 최대 1건) |
+| `LicenseType` (v4) | `TRIAL`, `STANDARD`, `ENTERPRISE` — **사용 중단(ADR-015)**, Java enum 삭제. `licenses.license_type` CHECK로 DB에만 잔존 |
+| `LicenseStatus` (v4) | `ACTIVE`, `SUPERSEDED`, `REVOKED` — **사용 중단(ADR-015)**, Java enum 삭제. `licenses.status` CHECK로 DB에만 잔존 |
 | `CustomFieldDataType` (v4) | `TEXT`, `NUMBER`, `DATE`, `BOOLEAN`, `SINGLE_SELECT`, `MULTI_SELECT` |
 | `CustomFieldStatus` / `ProjectEnumerationValueStatus` (v4) | `ACTIVE`, `DEPRECATED` (하드 삭제 없음 — 공용 "소프트 비활성" 값 집합이지만 서로 다른 enum, 합치지 않는다) |
 | `FormLayoutFieldSource` (v4) | `STANDARD`, `CUSTOM` |
@@ -146,7 +146,7 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 검증, 불리언 반환 | `is`, `can`, `has` | check |
 | 변환 | `to` / `from` | convert, as, parse |
 
-> `06-auth.md`가 이미 `ProjectMemberService.requireRole(...)`을 쓰고 있으므로 권한 검사 동사는 `require`로 고정한다. v4의 `LicenseEnforcementService.requireActiveLicense()`/`requireSeatAvailable()`(ADR-011), `WorkflowTransitionPolicy.requireAllowedTransition(...)`(ADR-012 §D)도 동일한 규칙을 따른다.
+> `06-auth.md`가 이미 `ProjectMemberService.requireRole(...)`을 쓰고 있으므로 권한 검사 동사는 `require`로 고정한다. `WorkflowTransitionPolicy.requireAllowedTransition(...)`(ADR-012 §D), `SystemAdminRetentionPolicy.requireAnotherActiveAdmin(...)`(ADR-015)도 동일한 규칙을 따른다.
 
 ## 6. 화면·UI 용어 (한글 ↔ 영문)
 
@@ -160,8 +160,6 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 | 변경 이력 뷰어 | 변경 이력 | `AuditLogViewer` | §5.9 |
 | 위험 관리 보드 (v3) | 위험 관리 | `RiskBoard` | §5.13 |
 | 요구사항 문서 뷰 (v3) | 문서 보기 | `RequirementDocumentView` | §5.14 |
-| 회원가입 (v4) | 회원가입 | `SignupPage` | §5.16 |
-| 라이센스 관리 (v4) | 라이센스 관리 | `LicenseAdminPage` | §5.17 |
 | 프로젝트 설정 — 필드 탭 (v4) | 필드 | `CustomFieldSettingsTab` | §5.18 |
 | 프로젝트 설정 — 폼 레이아웃 탭 (v4) | 폼 레이아웃 | `FormLayoutSettingsTab` | §5.19 |
 | 프로젝트 설정 — 열거형 탭 (v4) | 열거형 | `EnumerationSettingsTab` | §5.20 |
@@ -178,3 +176,4 @@ Light ALM의 **유비쿼터스 언어(Ubiquitous Language)** 사전이다. 같�
 - 2026-10-03: v4 확장(ADR-011·ADR-012) 개념 반영. §1에 `License`/`SelfSignup`/`CustomFieldDefinition`/`CustomFieldValue`/`FormLayout`/`FormLayoutSection`/`FormLayoutField`/`ProjectEnumerationSet`/`ProjectEnumerationValue`/`WorkflowTransitionRule` 추가. §2에 `custom_field_values`를 첫 그룹에, `workflow_transition_rules`는 `(target_type,target_id)` 쌍을 쓰지 않아 다형 연관 분류 대상이 아님을 명시. §3에 `LicenseType`/`LicenseStatus`/`CustomFieldDataType`/`CustomFieldStatus`/`FormLayoutFieldSource`/`EnumerationBaseEnum` 추가. §5에 `requireActiveLicense`/`requireSeatAvailable`/`requireAllowedTransition`이 기존 `require` 동사 규칙을 따른다고 기록. §6에 신규 화면 6개 추가.
 - 2026-10-03: ADR-013 반영. §1에 `RequirementLevel`(`requirements.requirement_level`, `Requirement.type`과 다른 축) 추가. §3에 `RequirementLevel` enum(`PRD`,`SRS`) 추가. §6에 `WorkItemTreePanel`(§5.22) 추가.
 - 2026-10-05: ADR-014(시스템 테마 설정) 반영. §1에 `SystemThemeSettings`(`system_theme_settings`, 시스템 전역 1행) 추가. §3에 `ThemeColorPreset` enum(`DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE`) 추가. §6에 `ThemeAdminPage`(§5.23)·`ColorModeToggle`(§5.3·§5.23) 추가. 라이트/다크 모드는 서버에 저장하지 않는 개인 브라우저 선호라 도메인 개념(§1)에는 포함하지 않음을 명시.
+- 2026-10-05: ADR-015 반영. §1 `License`/`SelfSignup` 행을 폐기 표시. §3 `SystemRole`/`ProjectRole`에 화면 표시명(System Admin/User/Project Admin/Project Assignable/Project User)과 USER↔VIEWER("Project User") 혼동 주의 추가, `LicenseType`/`LicenseStatus` 사용 중단 표기, `AuditTargetType`에 기존 누락이던 `LICENSE` 추가(신규 기록 없음). §5 `LicenseEnforcementService` 예시를 `SystemAdminRetentionPolicy.requireAnotherActiveAdmin`으로 교체. §6 회원가입/라이센스 관리 화면 행 삭제

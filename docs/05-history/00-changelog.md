@@ -1,7 +1,14 @@
-> Owner: orchestrator | Status: current | Last-reviewed: 2026-09-06
+> Owner: orchestrator | Status: current | Last-reviewed: 2026-10-06
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 변경 이력
+
+### 2026-10-06 — ADR-015 qa-tester 검증 통과, ADR-016 세션 권한 재검증 구현
+- ADR-015 qa-tester 검증 통과(판정 가능한 DoD 전부 PASS, 화면 DoD 7·8·9·15·16d 브라우저 미확인, `LastActiveAdminConcurrencyIT` 미실행)
+- ADR-016 신규(qa-tester 발견 결함 수정): [High] 강등·비활성화된 사용자의 기존 세션이 이전 권한을 유지해 자기 복권·ADMIN 생성이 가능하던 문제 → `SessionPrincipalRefreshFilter`가 요청마다 `users`의 `enabled`/`system_role`을 재검증(비활성/삭제 401 + 세션 무효화, 역할 변경 시 principal/authorities 교체). [Low] `User` 전체 컬럼 UPDATE로 인한 lost update(활성 ADMIN 0명 가능) → `@DynamicUpdate`. 마이그레이션 없음. `mvnw test` 208개. 06-auth.md §6.3·§6.4, 04-api.md §4.1·§4.3, 02-architecture.md §2.3, 08-dev-phases.md, ADR-015 Status, adr/README, CURRENT-STATE.md 동기화
+
+### 2026-10-05 — ADR-015 권한 체계 정리 구현
+- 회원가입(Self-Signup)·라이센스 파일 관리(ADR-011) 기능 제거(ADR-011 Superseded, DB `licenses` 테이블·`AuditTargetType.LICENSE` 보존), 역할 화면 표시명(System Admin/User/Project Admin/Project Assignable/Project User) 도입, 마지막 활성 System Admin 보호(`400 LAST_ACTIVE_ADMIN`, 비관적 락), `POST /api/projects` System Admin 전용화. 마이그레이션 없음. 01-scope.md·03/04/05 설계 문서·06-auth.md·GLOSSARY.md·08-dev-phases.md·10-deployment.md 부록 F·CURRENT-STATE.md 동기화
 
 ### 2026-09-06 — 신규 규약 문서 4종 등록 및 실제 코드 대조 정정
 - **신규 문서 4개 추가**: `GLOSSARY.md`(용어 사전, 오케스트레이터 소유), `03-process/11-structure-migration-plan.md`(계층형→기능별 패키지 마이그레이션 계획, architect 소유), `03-process/conventions/01-engineering-principles.md`·`02-naming-spring-react.md`(엔지니어링/명명 규약, qa-tester 소유). ROLES.md §1과 SPEC.md 문서 구성 표에 등록했다.

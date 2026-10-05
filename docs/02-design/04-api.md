@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-05
+> Owner: architect | Status: current | Last-reviewed: 2026-10-06 (ADR-016 반영)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 4. REST API 명세
@@ -6,7 +6,7 @@
 ### 4.1 공통 규칙
 - Base path: `/api`
 - 요청/응답 포맷: JSON (`Content-Type: application/json`)
-- 인증: Spring Security 세션 쿠키(`JSESSIONID`). 프론트엔드는 axios `withCredentials: true` 필수
+- 인증: Spring Security 세션 쿠키(`JSESSIONID`). 프론트엔드는 axios `withCredentials: true` 필수. 인증된 요청마다 서버가 세션 사용자의 `enabled`/`systemRole`을 DB로 재검증한다 — 비활성화·삭제된 사용자의 세션은 `401 UNAUTHORIZED`(세션 폐기), 시스템 역할 변경은 다음 요청부터 반영(ADR-016, 06-auth.md §6.4)
 - CSRF: Spring Security 기본 CSRF 보호 활성화, 쿠키 기반 토큰(`XSRF-TOKEN`) 발급 → 프론트는 `X-XSRF-TOKEN` 헤더로 전송 (단, `/api/webhooks/**` 경로는 CSRF 예외 처리 — 외부 시스템 호출이므로 서명 검증으로 대체)
 - 에러 응답 포맷(공통):
 ```json
@@ -31,6 +31,8 @@
 }
 ```
 - 권한 표기: `[인증필요]` `[ADMIN]`(시스템 관리자) `[PROJECT_ADMIN+]`(해당 프로젝트 관리자 이상) `[MEMBER+]`(해당 프로젝트 멤버 이상, 즉 VIEWER 제외) `[VIEWER+]`(해당 프로젝트 멤버라면 누구나, VIEWER 포함) `[공개]`(인증 불필요, Webhook 전용)
+  - **[ADR-015] 역할 화면 표시명**: 권한 표기와 API 값은 기존 값을 그대로 쓴다. 화면에서는 `ADMIN`=System Admin, `USER`=User, `PROJECT_ADMIN`=Project Admin, `MEMBER`=Project Assignable, `VIEWER`=Project User로 표시한다(매핑은 `frontend/src/auth/roleDisplayNames.ts` 한 곳, GLOSSARY.md §3).
+- 도메인 전용 에러 코드(ADR-015): `400 LAST_ACTIVE_ADMIN` — 유일한 활성 System Admin을 ADMIN에서 해제하거나 비활성화하려는 요청(§4.3). `message` 예: `"활성 상태인 System Admin이 최소 1명은 있어야 합니다. 다른 사용자에게 System Admin 권한을 먼저 부여하세요."`
 
 ### 4.2 인증 (Auth)
 | Method | Path | 설명 | 권한 |
@@ -43,17 +45,25 @@
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/users` | 사용자 목록 (페이지네이션) | ADMIN |
-| POST | `/api/users` | 사용자 생성 `{username,password,email,fullName,systemRole}` | ADMIN |
+| POST | `/api/users` | 사용자 생성 `{username,password,email,fullName,systemRole}` — **시스템의 유일한 계정 생성 경로**(공개 회원가입 없음, ADR-015). 라이센스/시트 게이트 없음 | ADMIN |
 | GET | `/api/users/{id}` | 사용자 상세 | ADMIN |
-| PUT | `/api/users/{id}` | 사용자 정보 수정 | ADMIN |
-| DELETE | `/api/users/{id}` | 사용자 비활성화(soft: enabled=false) | ADMIN |
+| PUT | `/api/users/{id}` | 사용자 정보 수정 `{email,fullName,systemRole?,enabled?}` — 마지막 활성 System Admin 보호 적용(아래) | ADMIN |
+| DELETE | `/api/users/{id}` | 사용자 비활성화(soft: enabled=false) — 마지막 활성 System Admin 보호 적용(아래) | ADMIN |
 | PUT | `/api/users/me/password` | 본인 비밀번호 변경 `{oldPassword,newPassword}` | 인증필요 |
+
+**마지막 활성 System Admin 보호 (ADR-015 D3/§3)** — 불변식: `enabled=true`이고 `systemRole=ADMIN`인 사용자가 항상 1명 이상.
+- 검사 대상: `PUT`에서 `systemRole`이 `ADMIN`이 아닌 값으로 오거나(ADMIN 해제) `enabled=false`가 오는 경우(비활성화), 그리고 `DELETE`는 항상. `email`/`fullName`만 바꾸거나 `systemRole=ADMIN`·`enabled=true`를 유지하는 요청은 검사(락)를 생략한다.
+- 판정: 활성 ADMIN 행 전체를 `PESSIMISTIC_WRITE`(id 오름차순, Hibernate 6 + PostgreSQL이 실제로 생성하는 SQL은 `SELECT ... FOR NO KEY UPDATE` — 이 락끼리와 UPDATE가 서로 충돌하므로 동시성 보장은 동일, qa-tester 2026-10-06 show-sql 확인)로 잠근 뒤, 대상이 그 집합에 있고 집합 크기가 1이면 `400 LAST_ACTIVE_ADMIN`(DB 값 변경 없음). 대상이 USER이거나 이미 비활성인 ADMIN이면 그대로 통과(200/204). 본인 요청도 같은 규칙. 아이디 `admin`(V2 시드)도 특별 취급하지 않는다.
+- 동시성: 활성 ADMIN 2명이 서로를 동시에 강등하면 한쪽만 200, 다른 쪽은 락 대기 후 최신 상태로 재평가되어 400.
+- 구현: `com.lightalm.user.service.SystemAdminRetentionPolicy.requireAnotherActiveAdmin()`, `UserRepository.findEnabledAdminsForUpdate()`(`PESSIMISTIC_WRITE`), 예외 `com.lightalm.user.domain.LastActiveAdminRemovalException` → `GlobalExceptionHandler.handleLastActiveAdminRemoval`.
+- 기존 세션 반영(ADR-016): 이 API로 ADMIN을 해제하면 대상 사용자의 **기존 세션**도 다음 요청부터 ADMIN 전용 API가 `403 FORBIDDEN`이 되고(`GET /api/auth/me`도 갱신된 `systemRole`), 비활성화(`enabled=false`/`DELETE`)하면 대상의 기존 세션은 다음 요청에서 세션 폐기 + `401 UNAUTHORIZED`가 된다. 승격도 다음 요청부터 반영. 상세는 06-auth.md §6.4.
+- `PUT`은 실제로 바뀐 컬럼만 UPDATE한다(`User` `@DynamicUpdate`, ADR-016 D3) — email/fullName만 바꾸는 요청이 동시에 커밋된 `systemRole`/`enabled` 변경을 되돌리지 않는다.
 
 ### 4.4 프로젝트 (Project)
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/projects` | 내가 속한 프로젝트 목록 (ADMIN은 전체) — 페이지네이션(`page`,`size`)만 지원, `keyword` 검색은 **미구현**(추후 추가 시 백엔드 확장 필요) | 인증필요 |
-| POST | `/api/projects` | 프로젝트 생성 `{projectKey,name,description}` — 생성자는 자동으로 PROJECT_ADMIN 등록 | 인증필요 |
+| POST | `/api/projects` | 프로젝트 생성 `{projectKey,name,description}` — 생성자(System Admin)는 자동으로 PROJECT_ADMIN 등록. 실제 담당 Project Admin은 생성 후 멤버 API로 지정. **ADR-015 D6: `@PreAuthorize("hasRole('ADMIN')")`, ADMIN이 아니면 `403 FORBIDDEN`**(이전엔 인증된 사용자 누구나 가능. 기존 프로젝트·멤버는 그대로) | ADMIN |
 | GET | `/api/projects/{projectId}` | 프로젝트 상세 | VIEWER+ |
 | PUT | `/api/projects/{projectId}` | 프로젝트 정보 수정 | PROJECT_ADMIN+ |
 | DELETE | `/api/projects/{projectId}` | 프로젝트 삭제 | PROJECT_ADMIN+ |
@@ -244,7 +254,7 @@
 |---|---|---|---|
 | POST | `/api/projects/{projectId}/{targetType}/{targetId}/review-cycles` | 리뷰 사이클 생성 `{name, participantUserIds:[]}` | MEMBER+ |
 | GET | `/api/projects/{projectId}/{targetType}/{targetId}/review-cycles` | 대상의 리뷰 사이클 목록(참여자 결정 현황 포함) | VIEWER+ |
-| PATCH | `/api/projects/{projectId}/review-cycles/{cycleId}/participants/me` | 본인 결정 기록 `{decision, comment}` | 해당 사이클의 participant 본인만 |
+| PATCH | `/api/projects/{projectId}/review-cycles/{cycleId}/participants/me` | 본인 결정 기록 `{decision, comment}` — **[ADR-015 P1] Project User(`VIEWER`)도 호출할 수 있는 유일한 쓰기 API**(참여자로 지정된 본인 행만 기록, 작업 항목 데이터는 바꾸지 않음) | 해당 사이클의 participant 본인만 |
 | PATCH | `/api/projects/{projectId}/review-cycles/{cycleId}/status` | 사이클 닫기(`CLOSED`) — 대상 status는 변경하지 않음(§3.19 원칙) | MEMBER+ |
 
 ### 4.18 베이스라인 (Baseline)
@@ -308,35 +318,13 @@
 
 ---
 
-## v4 확장 API (2026-10-03~05, 03-data-model.md §3.25~3.30 참고, 아직 미구현 — ADR-011·ADR-012·ADR-014)
+## v4 확장 API (2026-10-03~05, 03-data-model.md §3.25~3.30 참고 — ADR-011(ADR-015로 제거)·ADR-012·ADR-014. 구현 상태는 CURRENT-STATE.md §1)
 
-### 4.22 회원가입 (Self-Signup)
-| Method | Path | 설명 | 권한 |
-|---|---|---|---|
-| POST | `/api/auth/signup` | 회원가입 `{username,email,fullName,password,passwordConfirm}` — `systemRole`은 항상 `USER`, `enabled`은 항상 `true`로 서버가 고정. 가입 성공해도 자동 로그인하지 않음(별도로 `/api/auth/login` 호출 필요) | 공개 |
+### 4.22 회원가입 (Self-Signup) — **제거됨(ADR-015, 2026-10-05)**
+ADR-011로 추가됐던 공개 API `POST /api/auth/signup`은 ADR-015로 제거됐다. 계정은 System Admin(`ADMIN`)만 §4.3 `POST /api/users`로 만든다 — **공개된 계정 생성 경로는 없다.** `SecurityConfig`의 `permitAll()` 목록에서도 빠졌으므로, 비인증 호출은 CSRF 토큰이 없으면 `403`(CsrfFilter), 있으면 `401 UNAUTHORIZED`(인증 진입점)를 받고 계정은 생기지 않는다. 회원가입으로 이미 생긴 계정은 일반 `USER` 계정으로 그대로 남는다.
 
-검증 규칙은 기존 `POST /api/users`(§4.3 `CreateUserRequest`)와 동일하게 맞춘다: `username`(NotBlank, max 50), `email`(NotBlank, Email, max 120), `fullName`(NotBlank, max 100), `password`(NotBlank, 8~100자), `passwordConfirm`(서비스 레이어에서 `password`와 일치 검증, 불일치 시 `400 VALIDATION_ERROR`).
-
-라이센스 연동 — 가입 직전 `LicenseEnforcementService.requireActiveLicense()`/`requireSeatAvailable()` 통과 필요(§4.23 참고):
-
-| 상황 | HTTP | error 코드 |
-|---|---|---|
-| 활성 라이센스 없음/만료 | 403 | `LICENSE_INVALID` |
-| 시트 한도 초과(`enabled=true` 사용자 수 ≥ `seat_limit`) | 403 | `LICENSE_SEAT_LIMIT_EXCEEDED` |
-
-### 4.23 라이센스 관리 (License)
-| Method | Path | 설명 | 권한 |
-|---|---|---|---|
-| POST | `/api/admin/licenses` | 라이센스 파일 업로드(multipart, `file` 파트) → 파싱(JSON)/HMAC-SHA256 서명 검증/적용. 기존 `ACTIVE` 행을 `SUPERSEDED`로 전환 후 신규 `ACTIVE` 삽입(단일 트랜잭션) | ADMIN |
-| GET | `/api/admin/licenses/current` | 현재 활성 라이센스 상세 + 시트 사용량(`seatsUsed`,`seatsRemaining`) | ADMIN |
-| GET | `/api/admin/licenses` | 업로드 이력(페이지네이션) | ADMIN |
-| GET | `/api/public/license-status` | `{signupAllowed: boolean, reason: string\|null}` — 시트 수/라이센스 키 등 민감 정보는 내려주지 않음, `/signup` 화면에서 폼 노출 전 안내용 | 공개 |
-
-업로드 실패 응답: `400 LICENSE_SIGNATURE_INVALID`(서명 불일치, 저장하지 않음), `400 LICENSE_ALREADY_EXPIRED`(업로드 시점 기준 이미 만료된 파일), `400 LICENSE_FILE_TOO_LARGE`(16KB 초과).
-
-적용 게이트는 두 개로 분리된다(§게이트 A/B, 상세는 ADR-011 §2.3):
-- **게이트 A(라이센스 유효성)**: 활성 라이센스가 없거나 만료 — 모든 비-ADMIN 로그인(로그인 성공 처리 직후 검사, 실패 시 세션 무효화 + `403 LICENSE_INVALID`) + 모든 신규 계정 생성(가입·관리자의 `POST /api/users` 양쪽 모두)에 적용. 시스템 `ADMIN`의 로그인은 예외(복구 경로).
-- **게이트 B(시트 한도)**: `enabled=true` 사용자 수 ≥ `seat_limit` — 신규 계정 생성(가입·관리자 생성)에만 적용. 기존 로그인에는 영향 없음(라이센스를 더 작은 시트로 교체해도 이미 만들어진 계정은 계속 로그인 가능).
+### 4.23 라이센스 관리 (License) — **제거됨(ADR-015, 2026-10-05)**
+`POST /api/admin/licenses`, `GET /api/admin/licenses/current`, `GET /api/admin/licenses`, `GET /api/public/license-status`는 모두 제거됐다. 로그인·계정 생성 시의 라이센스 게이트(`403 LICENSE_INVALID`, `403 LICENSE_SEAT_LIMIT_EXCEEDED`)와 업로드 오류 코드(`LICENSE_SIGNATURE_INVALID` 등)도 더 이상 응답되지 않는다 — 비-ADMIN 로그인과 `POST /api/users`는 라이센스 상태와 무관하게 동작한다(ADR-011 이전 동작). 비인증 호출은 401. 인증된 호출은 핸들러가 없어 기존 알려진 이슈(`NoHandlerFoundException`이 catch-all로 떨어져 500, CURRENT-STATE §6)를 그대로 따른다. DB `licenses` 테이블은 보존(03-data-model.md §3.25).
 
 ### 4.24 프로젝트 커스텀 필드 (Custom Field)
 | Method | Path | 설명 | 권한 |
@@ -370,14 +358,14 @@
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
 | GET | `/api/projects/{projectId}/config/workflow-rules?targetType=` | 규칙 목록(없으면 "자유 전이 모드"임을 함께 응답) | PROJECT_ADMIN+ |
-| POST | `/api/projects/{projectId}/config/workflow-rules` | 규칙 추가 `{targetType,fromStatus,toStatus,allowedRole?}` | PROJECT_ADMIN+ |
+| POST | `/api/projects/{projectId}/config/workflow-rules` | 규칙 추가 `{targetType,fromStatus,toStatus,allowedRole?}` — **[ADR-015 P3]** `allowedRole=VIEWER`는 하위 호환으로 계속 허용(V17 CHECK)하지만, 상태 변경 API가 규칙을 보기 전에 `MEMBER+`를 먼저 요구하므로 실제로는 `MEMBER`와 같다. 화면은 VIEWER를 새로 고를 수 없게 함 | PROJECT_ADMIN+ |
 | DELETE | `/api/projects/{projectId}/config/workflow-rules/{ruleId}` | 규칙 삭제(전부 삭제 시 해당 target_type은 자유 전이 모드로 복귀) | PROJECT_ADMIN+ |
 | GET | `/api/projects/{projectId}/workflow-rules/{targetType}/{fromStatus}` | 특정 상태에서 전이 가능한 다음 상태 목록("상태 변경" 드롭다운 구성용) | VIEWER+ |
 
 ### 4.28 시스템 테마 설정 (Theme) — ADR-014
 | Method | Path | 설명 | 권한 |
 |---|---|---|---|
-| GET | `/api/public/theme` | `{ colorPreset: "RED" }` — 색상 프리셋 코드만 반환(민감 정보 없음). 앱 부트스트랩이 비인증 상태로 호출 — `/login`·`/signup` 화면에도 동일하게 적용됨 | 공개 |
+| GET | `/api/public/theme` | `{ colorPreset: "RED" }` — 색상 프리셋 코드만 반환(민감 정보 없음). 앱 부트스트랩이 비인증 상태로 호출 — `/login` 화면에도 동일하게 적용됨 | 공개 |
 | GET | `/api/admin/theme-settings` | 현재 설정 상세(`colorPreset`,`updatedBy`,`updatedAt`) + 선택 가능한 프리셋 전체 목록(코드/라벨/대표 색상 — 관리자 화면 스와치 미리보기용) | ADMIN |
 | PUT | `/api/admin/theme-settings` | 본문 `{ "colorPreset": "BLUE" }` — 프리셋 변경. `DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE` 외 값은 `400 VALIDATION_ERROR` | ADMIN |
 

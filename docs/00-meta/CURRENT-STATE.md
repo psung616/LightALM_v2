@@ -1,4 +1,4 @@
-> Owner: orchestrator (전체 세션이 매 Phase 종료 시 갱신) | Status: current | Last-reviewed: 2026-10-05
+> Owner: orchestrator (전체 세션이 매 Phase 종료 시 갱신) | Status: current | Last-reviewed: 2026-10-06
 > 상위 문서: [SPEC.md](SPEC.md)
 
 ## 이 문서의 목적
@@ -20,10 +20,12 @@
 | Phase 15 (승인 워크플로우) | ✅ 완료 (2026-08-04) |
 | Phase 16 (v3: 리뷰 사이클 + 베이스라인) | ✅ 구현 완료. qa-tester 검증에서 **경미(Low) 1건 반려**(잘못된 enum 값·본문 누락 등 역직렬화 오류가 400이 아닌 500) → `GlobalExceptionHandler` 수정 완료 → **qa-tester 재검증 통과**(2026-10-05) (2026-10-05, ADR-008. 마이그레이션 `V18__create_review_and_baseline_tables.sql`, `com.lightalm.review`·`com.lightalm.baseline` 패키지. developer가 로컬 docker-compose Postgres + curl로 DoD 2항목 실측 확인) |
 | Phase 17~19 (v3: 위험 관리 / 문서 뷰+변형 관리 / 대시보드 위젯+리포트 내보내기) | 🔲 설계 완료, **구현 전** (2026-08-08 설계, ADR-008) |
-| v4: 회원가입(Self-Signup) + 라이센스 파일 관리 | ✅ 완료, qa-tester 검증 통과 (2026-10-03, ADR-011) |
+| v4: 회원가입(Self-Signup) + 라이센스 파일 관리 | ⛔ **ADR-015로 제거됨**(2026-10-05). 2026-10-03 구현·qa 통과(ADR-011) 후 기능 전체 삭제. DB `licenses` 테이블(V9)·`audit_logs` LICENSE CHECK(V10)·`AuditTargetType.LICENSE`만 보존 |
 | v4: 프로젝트 Configuration(커스텀 필드/폼레이아웃/열거형/워크플로우) | ✅ **Phase 20~23 전부 구현 완료 — ADR-012 전체 완료(2026-10-05)**. Phase 20~21은 qa-tester 검증 통과(반려 1건 수정 후). **Phase 22(열거형)는 qa-tester 검증에서 Medium 2건 반려**(폐기된 PRIORITY 값 보유 항목의 다른 필드 수정 차단, `enumKey=PRIORITY`+baseEnum 생략 집합이 프로젝트 전체 priority 쓰기 차단) → developer 수정 → **qa-tester 재검증 통과**(2026-10-05). Phase 23(워크플로우)은 1차 검증의 치명적 버그(항목6) 반려·수정 후 **qa-tester 최종 재승인 완료**(2026-10-05) (2026-10-03 설계, ADR-012) |
 | v4: 프로젝트 사이드바 — PRD/SRS/Defect/TestCase 유형별 트리 | ✅ 완료, qa-tester 검증 통과 (2026-10-04, ADR-013) |
 | v4: 시스템 테마(색상 템플릿) 설정 | ✅ 완료, qa-tester 검증 통과 (2026-10-05, ADR-014. 마이그레이션 `V16__create_system_theme_settings.sql`, `com.lightalm.theme` 패키지) |
+| v4 유지보수: 권한 체계 정리(ADR-015) — 역할 표시명, 회원가입·라이센스 제거, 마지막 활성 System Admin 보호, 프로젝트 생성 System Admin 전용 | ✅ 구현 완료, **qa-tester 검증 통과**(2026-10-06 — 판정 가능한 DoD 전부 PASS. 화면 항목 DoD 7·8·9·15·16d는 코드상 PASS·**브라우저 미확인**, `LastActiveAdminConcurrencyIT` **미실행**. 검증 중 발견한 결함 2건은 ADR-016으로 수정) (2026-10-05, ADR-015. 마이그레이션 없음 — V18 최신 유지. 신규 `com.lightalm.user` 패키지(`SystemAdminRetentionPolicy`, `LastActiveAdminRemovalException`), 프론트 `frontend/src/auth/roleDisplayNames.ts`. `mvnw test` 198개 통과(199 − 삭제 18 + 신규 17), 프론트 tsc/build/lint 통과(경고 4건 기존 그대로). developer가 로컬 docker-compose Postgres + curl로 백엔드 DoD 실측) |
+| v4 유지보수: 세션 사용자 상태 요청마다 재검증 + `User` lost update 방지(ADR-016) — qa-tester가 ADR-015 검증 중 발견한 [High] 강등·비활성 사용자 기존 세션의 권한 유지(자기 복권·ADMIN 생성), [Low] 활성 ADMIN 0명 가능 lost update | ✅ 구현 완료, **qa-tester 검증 통과** (2026-10-06, ADR-016. 마이그레이션 없음 — V18 최신 유지. 신규 `com.lightalm.security.SessionPrincipalRefreshFilter`(`AuthorizationFilter` 앞, 요청마다 `users` PK 조회 → 비활성/삭제 401+세션 무효화, 역할 변경 시 principal/authorities 교체), `User`에 `@DynamicUpdate`. `mvnw test` 208개 통과(198 + 신규 10). developer가 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 qa 재현 시나리오·회귀 실측) |
 
 근거: 08-dev-phases.md
 
@@ -65,6 +67,7 @@
 | 항목 | 값 |
 |---|---|
 | 최초 관리자 | `admin` / `admin1234` (V2__seed_admin.sql 시드값, 로그인 후 변경 권장) |
+| 계정·프로젝트 생성 | **System Admin(`ADMIN`)만** — 계정은 `POST /api/users`(공개 회원가입 없음), 프로젝트는 `POST /api/projects`(ADMIN 전용). 활성 ADMIN은 애플리케이션이 항상 1명 이상 유지(`400 LAST_ACTIVE_ADMIN`). 역할 화면 표시명: ADMIN=System Admin, USER=User, PROJECT_ADMIN=Project Admin, MEMBER=Project Assignable, VIEWER=Project User (ADR-015) |
 | Jenkins | `https://jenkins.ondalprincess.synology.me/job/ALM_Pipeline/` |
 
 ## 6. 알려진 리스크 / TODO (아직 해결 안 됨)
@@ -74,8 +77,8 @@
 - Flyway `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 체크섬 검증을 우회 중 — 스키마 드리프트를 놓칠 수 있는 상태
 - `synology` push가 곧바로 운영 배포로 이어지는데 별도의 배포 승인/검토 게이트가 없음(ADR-005 리스크 항목 참고)
 - `synology` remote 저장소명(`ALM_Repository`)이 GitHub 저장소명(`LightALM_v2`)과 달라 혼동 가능성 있음
-- `LICENSE_SIGNING_SECRET` 환경변수 기본값이 개발용 평문(`light-alm-dev-only-insecure-secret-change-in-production`)으로 설정돼 있음 — **운영 배포 전 반드시 고유한 값으로 교체 필요.** 교체하지 않으면 기본값을 아는 누구나 유효한 라이센스 파일을 위조할 수 있다(ADR-011, HMAC 대칭키 설계의 의도된 한계)
-- 라이센스 만료/부재 시 복구 경로가 시스템 `ADMIN` 로그인 하나뿐임 — **최소 1개의 활성 ADMIN 계정을 항상 유지**해야 한다. 모든 ADMIN이 비활성화된 상태에서 라이센스까지 만료되면 아무도 새 라이센스를 올릴 수 없는 복구 불가 상태가 된다(ADR-011)
+- **[해결됨 — 기능 제거, ADR-015, 2026-10-05]** ~~`LICENSE_SIGNING_SECRET` 환경변수 기본값이 개발용 평문(`light-alm-dev-only-insecure-secret-change-in-production`)으로 설정돼 있음 — **운영 배포 전 반드시 고유한 값으로 교체 필요.** 교체하지 않으면 기본값을 아는 누구나 유효한 라이센스 파일을 위조할 수 있다(ADR-011, HMAC 대칭키 설계의 의도된 한계)~~ — 라이센스 기능과 `light-alm.license.signing-secret` 설정이 삭제되어 위조할 대상 자체가 없다
+- **[해결됨 — 기능 제거, ADR-015, 2026-10-05]** ~~라이센스 만료/부재 시 복구 경로가 시스템 `ADMIN` 로그인 하나뿐임 — **최소 1개의 활성 ADMIN 계정을 항상 유지**해야 한다. 모든 ADMIN이 비활성화된 상태에서 라이센스까지 만료되면 아무도 새 라이센스를 올릴 수 없는 복구 불가 상태가 된다(ADR-011)~~ — 라이센스 게이트가 없어졌고, 대신 "활성 ADMIN 0명" 상태 자체를 애플리케이션이 막는다(아래 ADR-015 항목)
 - **[해결됨, 2026-10-05]** `custom_field_definitions.enumeration_set_id` FK 미검증 리스크 — Phase 22(V15 마이그레이션)가 고아값 정리(`UPDATE ... SET enumeration_set_id = NULL WHERE NOT EXISTS (...)`) 후 `fk_custom_field_definitions_enumeration_set` FK(`ON DELETE SET NULL`)를 추가해 해소됐다(ADR-012 §C 각주).
 - Phase 22(PRIORITY 열거형 확장) 구현 후 새로 생긴 리스크: `requirements`/`issues`/`test_cases`의 `priority` 컬럼은 더 이상 DB CHECK 제약이 없다 — 유효성 검증은 전부 `EnumerationValueValidator`(애플리케이션 레벨)에 의존한다. 이 validator를 거치지 않는 쓰기 경로(향후 추가되는 bulk import, 관리 스크립트 등)가 생기면 DB 안전망 없이 잘못된 값이 저장될 수 있다(ADR-012 §C "결과" 섹션에 이미 예견된 리스크).
 - Phase 22는 백엔드/DB만 구현했다 — PROJECT_ADMIN이 PRIORITY 값을 프로젝트별로 확장해도, 프론트엔드 "열거형" 설정 탭과 요구사항/이슈/테스트케이스 생성·수정 화면의 PRIORITY 드롭다운은 아직 고정된 LOW/MEDIUM/HIGH/CRITICAL만 보여준다(API는 정상 동작하지만 화면에 반영되지 않음). 커스텀 필드 SINGLE_SELECT/MULTI_SELECT를 열거형 집합과 연결해 드롭다운으로 렌더링하는 것도 마찬가지로 미구현 상태라, Phase 20의 "자유 텍스트 입력" 임시 구현이 그대로 남아있다(ADR-012 §C 각주). 이미 API로 커스텀 PRIORITY 값(예: BLOCKER)이 저장된 항목을 수정 화면에서 열면 드롭다운에 해당 옵션이 없어 선택란이 비어 보일 수 있다 — 저장된 값 자체는 안전하게 유지되며 표시만 혼란스럽다(qa-tester 2026-10-05 확인).
@@ -94,6 +97,19 @@
 - **[해결됨, 2026-10-05]** Phase 22 qa-tester 반려 2건(Medium) — (1) 폐기(DEPRECATED)된 PRIORITY 값을 가진 요구사항/이슈/테스트케이스는 priority를 건드리지 않는 다른 필드 수정까지 400으로 막혔다 → update 경로는 값이 기존과 같으면 ACTIVE 검증 생략(`EnumerationValueValidator.requireValidValueForChange`). (2) `enumKey=PRIORITY`인데 baseEnum을 생략한 집합(값 0개)이 만들어지면 그 프로젝트의 모든 priority 쓰기(기본값 MEDIUM 포함)가 400이 되고 집합 삭제 API가 없어 복구 불가 → 생성 시 `enumKey=PRIORITY` ⇔ `baseEnum=PRIORITY` 강제(어긋나면 400). 스키마 변경 없음. **남은 한계**: 이 수정 이전에 이미 생성된 불일치 집합은 자동 정리되지 않는다(로컬 검증 DB 프로젝트 14에 1건 존재 — 로컬이라 무관). 운영 DB에 같은 데이터가 있는지는 확인하지 않았다(운영 DB 접속 금지) — 있다면 DB에서 직접 정리 필요. 상세는 ADR-012 §C 각주.
 - 매핑되지 않은 경로(예: `/api/licenses`처럼 실제로는 `/api/admin/licenses`인 오타성 경로)로 인증된 사용자가 요청하면 `NoHandlerFoundException`이 전역 핸들러의 catch-all로 떨어져 500이 응답됨(404가 맞음) — ADR-014 검증 중 발견된 기존부터 있던 별개 문제, 비차단(qa-tester 2026-10-05)
 - **[해결됨, 2026-10-05]** Phase 23(워크플로우 전이 규칙) qa-tester 실제 Postgres+API 검증에서 치명적 버그 발견 및 반려 — `ApprovalService.decide()`(`DRAFT→APPROVED` 실행 지점)가 lock-out 방지 우회가 포함된 `WorkflowTransitionPolicy.requireAllowedTransition(...)`을 그대로 호출해, `decide()`를 호출할 수 있는 모든 실제 호출자(항상 PROJECT_ADMIN 이상)가 그 우회 조건에 걸려 워크플로우 체크가 전혀 작동하지 않는 죽은 코드였다(화이트리스트에 `DRAFT→APPROVED`가 없어도 그대로 승인 성공). lock-out 우회가 없는 변형 `requireRegisteredTransition(...)`(actor 파라미터 자체 없음)을 추가해 `decide()`가 이를 쓰도록 수정했다 — 이 호출 지점은 `decide()` 자체가 이미 PROJECT_ADMIN+만 허용하므로 lock-out 시나리오가 없다(막혀도 PROJECT_ADMIN이 `config/workflow-rules`로 직접 규칙을 추가해 풀 수 있음). 로컬 docker-compose 실제 Postgres + `mvnw spring-boot:run`으로 구동한 실제 API에 PROJECT_ADMIN(시스템 ADMIN 아님) 계정으로 curl 재현: 화이트리스트에 미등록된 `DRAFT→APPROVED`는 `400 VALIDATION_ERROR`로 거부되고 요구사항/승인 요청 상태가 모두 원상태로 유지됨을 DB에서 직접 확인했고, 규칙을 추가한 뒤 재시도하면 `200`으로 성공해 요구사항이 `APPROVED`로 바뀜을 확인했다. 회귀 전이(규칙 미등록 프로젝트)도 `200`으로 정상 통과 확인. `mvnw test` 161개 통과(이전 157개 + 신규 4개). 상세는 ADR-012 §D 각주 참고.
+- ADR-015(권한 체계 정리) 구현 후 새로 생긴 리스크/주의(2026-10-05):
+  - **DB 직접 수정은 막지 못함**: 마지막 활성 System Admin 보호는 애플리케이션 레벨(`SystemAdminRetentionPolicy`)이다. `psql` 등으로 `users`를 직접 UPDATE하면 활성 ADMIN이 0명이 될 수 있고, 그때 복구는 DB 직접 UPDATE뿐이다: `UPDATE users SET enabled=true, system_role='ADMIN' WHERE username='<계정>';` (10-deployment.md 부록 F)
+  - **[해결됨 — ADR-016, 2026-10-06]** ~~**세션 권한 즉시 미반영(기존부터 있던 한계)**: `UserPrincipal`이 로그인 시 세션에 저장되므로, ADMIN 해제·비활성화된 사용자도 세션이 끝날 때까지 이전 권한을 유지한다~~ — qa-tester가 실제로 자기 복권(`PUT /api/users/{본인}` 200)·ADMIN 생성(`POST /api/users` 201)·비활성 USER 쓰기(201)로 악용 가능함을 재현해 High로 반려. `SessionPrincipalRefreshFilter`가 요청마다 DB의 `enabled`/`system_role`을 재검증해 비활성/삭제면 세션 무효화 + 401, 역할 변경이면 principal/authorities를 교체한다. 로컬 실측으로 같은 시나리오가 401/403으로 막힘을 확인
+  - **[해결됨 — ADR-016, 2026-10-06]** `User` 엔티티 전체 컬럼 UPDATE로 email/fullName만 수정하는 요청이 동시 커밋된 `system_role`/`enabled`를 되돌려 활성 ADMIN이 0명이 될 수 있던 lost update(qa-tester Low) — `@DynamicUpdate`로 변경 컬럼만 UPDATE(`update users set email=?,updated_at=? where id=?` 로그 확인). 두 트랜잭션 동시 재현 테스트는 하지 않음(SQL 형태로 판정)
+  - **브라우저 미확인(qa-tester 2026-10-06)**: ADR-015 화면 항목 DoD 7·8·9·15·16d는 코드상 PASS이나 실제 브라우저로 확인되지 않았다 — 운영 배포 전 또는 Playwright 등이 가능한 환경에서 확인 필요
+  - **운영 배포 전 확인 필요**: 운영 DB의 활성 ADMIN 수(1명이면 배포 후 그 계정은 해제·비활성화 불가 — 의도된 동작이므로 운영자에게 사전 안내). 배포 후 USER는 프로젝트를 만들 수 없고(403), `/signup` 경로가 사라진다(기존 가입 계정은 일반 USER로 유지)
+  - **동시 강등 통합 테스트 미실행**(qa-tester 2026-10-06 검증에서도 미실행): `LastActiveAdminConcurrencyIT`(Testcontainers)는 작성·컴파일만 했고 이 환경에서 실행하지 못했다(위 "확인 필요" 항목과 같은 Docker/Testcontainers 호환성 문제). 대신 로컬 Postgres에서 psql 세션이 활성 ADMIN 행 락을 잡은 동안 API 요청이 `Lock` 대기 → 커밋 후 재평가로 `400`이 나는 것과, 병렬 curl 3회 모두 정확히 1건만 성공함을 확인했다
+- ADR-016(세션 사용자 상태 재검증) 구현 후 새로 생긴 리스크/주의(2026-10-06):
+  - 인증된 모든 요청에 `users` PK SELECT 1회가 추가된다(현재 규모에서 비차단)
+  - 반영 시점은 "다음 요청부터"다 — 강등·비활성화 시점에 이미 필터를 통과해 실행 중인 요청은 이전 권한으로 끝난다
+  - 비밀번호 변경은 다른 세션을 끊지 않는다(기존 동작 유지, 범위 밖)
+  - **운영 배포 영향**: 배포 직후부터 비활성 계정의 기존 세션은 다음 요청에서 401로 로그아웃되고, 역할이 바뀐 계정은 새 역할로 동작한다(의도된 동작)
+  - `licenses` 테이블과 `audit_logs`의 LICENSE 행은 공용 DB에 쓰이지 않는 데이터로 남는다. DROP하려면 별도 ADR + 새 마이그레이션 + 다른 도구의 참조 여부 확인 필요
 
 ## 갱신 이력
 - 2026-08-08: 문서 구조 2차 개편과 함께 최초 작성. ADR-001~007 정리 및 02-architecture.md §2.4 낡은 경고에 상호참조 추가
@@ -109,3 +125,6 @@
 - 2026-10-05: §1의 "Phase 16~19" 행을 분리 — **Phase 16(리뷰 사이클+베이스라인) 구현 완료, qa-tester 검증 전**, Phase 17~19는 여전히 구현 전(ADR-008). 마이그레이션 `V18__create_review_and_baseline_tables.sql`, 패키지 `com.lightalm.review`·`com.lightalm.baseline`(docs/CLAUDE.md 신규 코드 규칙: Command/Query 서비스 분리, 요청 DTO record, Summary/Detail 응답 분리). `mvnw test` 190개 전체 통과(기존 161개 + 신규 29개), 프론트엔드 `tsc`/`build` 통과·`lint` 신규 경고 0건(기존 경고 4건 유지). 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 DoD 2항목(리뷰 결정/닫기 후 대상 status 불변, 베이스라인 diff 정확성)을 실측 확인 — 운영 공용 DB에는 적용하지 않음. §6에 Phase 16 관련 리스크(운영 DB 미적용, 고아 리뷰 사이클, 감사 로그 미연동, diff N회 조회, 커스텀 필드 미포함) 기록. 설계 대비 차이점은 03-data-model.md §3.19·§3.21, 04-api.md §4.17~4.18, 05-frontend.md §5.11~5.12 구현 각주 참고
 - 2026-10-05: qa-tester 반려 3건 수정 — (Phase 16, Low) 역직렬화 오류(enum 값 오류·본문 누락·JSON 문법 오류)·경로 변수 타입 오류가 500이던 문제를 `GlobalExceptionHandler`에 400 핸들러 추가로 해소, (Phase 22, Medium) 폐기된 PRIORITY 값 보유 항목의 수정 차단 해소(`requireValidValueForChange`), (Phase 22, Medium) `enumKey=PRIORITY`/`baseEnum` 불일치 집합 생성 거부. 스키마 변경 없음(V19 미생성). `mvnw test` 199개 통과(이전 190개 + 신규 9개). 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 qa 재현 시나리오 전부 재확인. §1: Phase 16·22는 "반려 수정 완료, qa-tester 재확인 전", Phase 23은 **qa-tester 최종 재승인 완료**로 갱신. §6 해당 항목 해결됨 처리. 상세는 ADR-012 §C 각주, 04-api.md §4.1 각주
 - 2026-10-05: qa-tester 재검증 — Phase 16(역직렬화 오류 4건 모두 400, DoD (a) 대상 status 불변 회귀 재확인) **PASS**, Phase 22(폐기 값 보유 항목 수정 허용·재변경/신규 생성 거부, enumKey/baseEnum 불일치 조합 거부) **PASS**. `mvnw test` 199개 통과, 프론트 build 통과. 수정 전에 생성된 불일치 PRIORITY 집합이 남는 한계는 그대로(§6) — 운영 DB에 해당 집합이 있는지는 배포 전 별도 확인 필요
+- 2026-10-05: ADR-015(권한 체계 정리) 구현 — §1에 회원가입·라이센스 행을 "ADR-015로 제거됨"으로 바꾸고 ADR-015 행 추가(구현 완료, qa-tester 검증 전). §5에 "계정·프로젝트 생성은 System Admin만, 활성 ADMIN 최소 1명 유지, 역할 표시명" 추가. §6의 `LICENSE_SIGNING_SECRET`·라이센스 복구 경로 리스크를 [해결됨 — 기능 제거]로, DB 직접 수정 시 활성 ADMIN 0명 가능·세션 권한 미반영·운영 배포 전 확인 사항·동시성 IT 미실행 리스크 신규 기록. 마이그레이션 없음. `mvnw test` 198개 통과(199 − 18 + 17)
+- 2026-10-06: qa-tester ADR-015 검증 결과 반영 — §1 ADR-015 행을 **qa-tester 검증 통과**로(판정 가능한 DoD 전부 PASS, 화면 DoD 7·8·9·15·16d 브라우저 미확인, `LastActiveAdminConcurrencyIT` 미실행). 검증 중 발견된 결함 2건을 ADR-016으로 수정 — [High] 강등·비활성 사용자 기존 세션의 권한 유지(자기 복권·ADMIN 생성) → `SessionPrincipalRefreshFilter`(요청마다 `users` 재조회), [Low] `User` lost update → `@DynamicUpdate`. §1에 ADR-016 행 추가(구현 완료, qa-tester 검증 전), §6의 "세션 권한 즉시 미반영"을 [해결됨 — ADR-016]으로, lost update 해결·브라우저 미확인·ADR-016 신규 리스크(요청당 SELECT 1회, 다음 요청부터 반영, 비밀번호 변경은 세션 유지, 배포 직후 비활성 계정 세션 401) 기록. 마이그레이션 없음. `mvnw test` 208개 통과(198 + 10)
+- 2026-10-06: qa-tester ADR-016 검증 통과 — DoD (a)~(e) 전부 PASS(강등+비활성 기존 세션 자기 복권·ADMIN 생성 401, 강등만 403·재승격 시 200, 비활성 USER 쓰기 401, 인증 회귀 없음, `@DynamicUpdate` 실제 SQL이 변경 컬럼만 UPDATE). `mvnw test` 208개 통과. ADR-015 핵심(마지막 ADMIN 400, 프로젝트 생성 403/201, 동시 상호 강등 6라운드) 회귀 재확인. 비차단 관찰 2건 문서 반영: permitAll 경로라도 인증 세션 쿠키가 있으면 재검증되어 비활성 사용자에게 1회 401(06-auth §6.4), `PESSIMISTIC_WRITE`의 실제 SQL은 `FOR NO KEY UPDATE`(04-api, ADR-015 각주)

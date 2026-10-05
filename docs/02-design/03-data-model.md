@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-05
+> Owner: architect | Status: current | Last-reviewed: 2026-10-05 (ADR-015 반영)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 3. 데이터 모델 (엔티티 & DB 테이블)
@@ -21,6 +21,8 @@
 | enabled | BOOLEAN | NOT NULL DEFAULT true |
 | created_at | TIMESTAMP | NOT NULL DEFAULT now() |
 | updated_at | TIMESTAMP | NOT NULL DEFAULT now() |
+
+> **[ADR-015] 활성 System Admin 최소 1명 불변식(애플리케이션 레벨)**: `enabled = true`이고 `system_role = 'ADMIN'`인 행이 항상 1개 이상 있어야 한다. DB 제약/트리거가 아니라 `UserService.update()`/`deactivate()`가 `SystemAdminRetentionPolicy`(`com.lightalm.user.service`)로 강제한다 — 활성 ADMIN 행 전체를 `SELECT ... WHERE system_role='ADMIN' AND enabled=true ORDER BY id FOR UPDATE`(`UserRepository.findEnabledAdminsForUpdate()`, `PESSIMISTIC_WRITE`)로 잠근 뒤 판정하고, 위반 시 `400 LAST_ACTIVE_ADMIN`. `psql` 등으로 직접 UPDATE하면 막지 못한다(복구 SQL은 10-deployment.md 참고). 시스템 역할 값은 그대로이고 화면 표시명만 `ADMIN`=System Admin, `USER`=User(ADR-015 D1).
 
 ### 3.2 `projects`
 | 컬럼 | 타입 | 제약 |
@@ -263,7 +265,7 @@ UNIQUE (release_id, target_type, target_id)
 |---|---|---|
 | id | BIGSERIAL | PK |
 | project_id | BIGINT | FK → projects.id, ON DELETE CASCADE, NULL 허용 (NULL이면 시스템 레벨 이벤트, 예: 사용자 관리) |
-| target_type | VARCHAR(30) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE','RELEASE','PROJECT','USER','TRACEABILITY_LINK') |
+| target_type | VARCHAR(30) | NOT NULL, CHECK IN ('REQUIREMENT','ISSUE','TEST_CASE','RELEASE','PROJECT','USER','TRACEABILITY_LINK','LICENSE') — `'LICENSE'`는 V10(ADR-011)에서 추가, ADR-015 이후 신규 기록 없음(과거 행 보존용) |
 | target_id | BIGINT | NOT NULL |
 | action | VARCHAR(30) | NOT NULL, CHECK IN ('CREATE','UPDATE','STATUS_CHANGE','DELETE','APPROVE','REJECT') |
 | field_name | VARCHAR(100) | NULL |
@@ -432,9 +434,12 @@ User 1---N DashboardWidgetConfig (optional FK: project_id)
 
 ## v4 확장 (2026-10-03~05, 01-scope.md §1.2 v4 항목, 아직 미구현 — ADR-011·ADR-012·ADR-014)
 
-> 아래 §3.25~§3.29는 ADR-011(회원가입+라이센스 관리)·ADR-012(프로젝트 Configuration 영역)에서 설계가 확정된 내용을 그대로 옮긴 것이다. §3.30은 ADR-014(시스템 테마 설정)에서 확정된 내용이다. 두 ADR 본문의 §2.3("업로드→파싱→저장→적용" 흐름)·§A~§D(커스텀 필드/폼 레이아웃/열거형/워크플로우) 서술이 각 테이블의 1차 근거이며, §3.30은 ADR-014 §2~§3이 근거다.
+> 아래 §3.25~§3.29는 ADR-011(회원가입+라이센스 관리 — **ADR-015로 기능 제거, §3.25 테이블만 보존**)·ADR-012(프로젝트 Configuration 영역)에서 설계가 확정된 내용을 그대로 옮긴 것이다. §3.30은 ADR-014(시스템 테마 설정)에서 확정된 내용이다. 두 ADR 본문의 §2.3("업로드→파싱→저장→적용" 흐름)·§A~§D(커스텀 필드/폼 레이아웃/열거형/워크플로우) 서술이 각 테이블의 1차 근거이며, §3.30은 ADR-014 §2~§3이 근거다.
 
-### 3.25 `licenses` (ADR-011)
+### 3.25 `licenses` (ADR-011) — **사용 중단(ADR-015, 2026-10-05)**
+
+> **사용 중단**: 회원가입·라이센스 기능이 ADR-015로 제거되어 애플리케이션은 이 테이블을 더 이상 읽거나 쓰지 않는다(`License` 엔티티·`LicenseRepository` 삭제). 공용 DB 데이터 보존을 위해 테이블·인덱스·데이터는 DROP하지 않고 그대로 둔다(V9 불변). 매핑 엔티티가 없어도 `ddl-auto: validate`에는 영향 없음. 완전 정리(DROP)는 별도 ADR + 새 마이그레이션이 필요하다. 아래 컬럼 표는 V9 스키마 기록이다.
+
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
 | id | BIGSERIAL | PK |
@@ -456,8 +461,8 @@ User 1---N DashboardWidgetConfig (optional FK: project_id)
 CREATE UNIQUE INDEX uq_licenses_single_active ON licenses(status) WHERE status = 'ACTIVE';
 ```
 
-> **`users` 테이블은 변경 없음.** `username`/`password`/`email`/`full_name`/`system_role`/`enabled`이 이미 회원가입(self-signup)에 필요한 컬럼을 모두 제공한다(§3.1 참고). 회원가입은 `systemRole`을 항상 `USER`로, `enabled`을 항상 `true`로 서버가 고정해서 저장하며 새 컬럼이 필요 없다.
-> `audit_logs.target_type`(§3.16) CHECK 제약에 `'LICENSE'`를 추가해 라이센스 업로드도 감사 로그 대상에 포함한다(기존 `chk_audit_logs_target_type` 제약을 `DROP`→재생성, ADR-011 §3.3).
+> **`users` 테이블은 변경 없음.** (ADR-011 당시: 회원가입이 기존 컬럼만으로 `systemRole=USER`, `enabled=true` 고정 저장. **ADR-015로 회원가입 제거** — 회원가입으로 생긴 기존 계정은 가입 경로 표시 컬럼이 없어 일반 `USER` 계정과 구분되지 않으며 그대로 유지된다.)
+> `audit_logs.target_type`(§3.16) CHECK 제약에 `'LICENSE'`를 추가했다(V10, 기존 `chk_audit_logs_target_type` 제약 `DROP`→재생성, ADR-011 §3.3). **ADR-015 이후 새 `LICENSE` 감사 로그는 기록되지 않는다.** CHECK 값과 Java enum `AuditTargetType.LICENSE`는 과거 행을 JPA로 읽을 수 있도록 유지한다(상수를 지우면 enum 변환 오류).
 
 ### 3.26 `custom_field_definitions` / `custom_field_values` (ADR-012 §A)
 프로젝트가 요구사항/이슈/테스트케이스에 붙이는 추가 속성. EAV(Entity-Attribute-Value) 패턴으로, 프로젝트마다 실제 테이블에 동적 `ALTER TABLE`을 실행하지 않는다.
@@ -602,7 +607,7 @@ UNIQUE (project_id, target_type, from_status, to_status)
 
 ### ERD 요약 추가분 (v4)
 ```
-License (단독 테이블, project_id 없음 — 시스템 전역 1건의 ACTIVE)
+License (단독 테이블, project_id 없음 — ADR-015로 사용 중단, 테이블·데이터만 보존)
 Project 1---N CustomFieldDefinition 1---N CustomFieldValue (target = Requirement|Issue|TestCase)
 Project 1---N FormLayout(target_type당 1개) 1---N FormLayoutSection 1---N FormLayoutField (optional FK: custom_field_id)
 Project 1---N ProjectEnumerationSet 1---N ProjectEnumerationValue

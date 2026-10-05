@@ -1,4 +1,4 @@
-> Owner: orchestrator · 실행은 developer | Status: current | Last-reviewed: 2026-10-05
+> Owner: orchestrator · 실행은 developer | Status: current | Last-reviewed: 2026-10-06
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 8. 단계별 개발 순서 (Claude 구현 지침)
@@ -145,3 +145,24 @@
 3. 04-api.md §4.21 API 구현
 4. 05-frontend.md §5.15 프론트 화면 구현(위젯 편집 모드, 내보내기 버튼)
 5. **DoD**: 위젯 설정을 저장/재조회했을 때 순서·구성이 유지되는지 확인, 추적성 매트릭스를 Excel로 내보내 실제 파일이 열리고 데이터가 정확한지 확인
+
+---
+
+> 아래는 Phase 번호를 새로 부여하지 않은 v4 유지보수 항목이다(v4 Phase 20~23·ADR-011·ADR-013·ADR-014의 구현 기록은 각 ADR 본문과 CURRENT-STATE.md §1에 있다).
+
+### v4 유지보수 — 권한 체계 정리 (ADR-015) ✅ 구현 완료 (2026-10-05), qa-tester 검증 통과 (2026-10-06)
+1. 회원가입·라이센스 기능 제거: 백엔드 `com.lightalm.auth`·`com.lightalm.license` 패키지 22개 파일과 테스트 5개 파일 삭제, `SecurityConfig` `permitAll()` 정리, `JsonAuthenticationSuccessHandler` 라이센스 게이트 제거, `UserService.create()` 라이센스/시트 검사 제거, `GlobalExceptionHandler` 라이센스 핸들러 3개 제거, `UserRepository.countByEnabledTrue()` 제거, `application.yml`의 `light-alm.license.signing-secret` 제거. 프론트 `SignupPage`/`AdminLicensesPage`/`api/license.ts`/`types/license.ts` 삭제, 라우트·`TopNavbar` 링크·로그인 화면 회원가입 링크 제거. DB(`licenses`, V10 `LICENSE` CHECK)와 `AuditTargetType.LICENSE`는 보존
+2. 역할 표시명: `frontend/src/auth/roleDisplayNames.ts` 신규, `AdminUsersPage`/`ProjectSettingsPage` 멤버 탭/`WorkflowRuleSettingsTab` 적용(워크플로우 최소 역할에서 VIEWER 신규 선택 불가)
+3. 마지막 활성 System Admin 보호: `com.lightalm.user.service.SystemAdminRetentionPolicy`, `com.lightalm.user.domain.LastActiveAdminRemovalException`, `UserRepository.findEnabledAdminsForUpdate()`(`PESSIMISTIC_WRITE`), `GlobalExceptionHandler` `400 LAST_ACTIVE_ADMIN`, `AdminUsersPage` 실패 메시지 표시
+4. 프로젝트 생성 System Admin 전용: `ProjectController.create()` `@PreAuthorize("hasRole('ADMIN')")`, 프론트 `/projects/new`를 `AdminRoute` 아래로 이동, `ProjectListPage` "새 프로젝트" 버튼·빈 목록 안내문 ADMIN 조건부
+5. 마이그레이션 없음(V18 최신 유지)
+6. 테스트: `mvnw test` 199 → 198개(삭제 18개: SelfSignupServiceTest 3, LicenseCommandServiceTest 2, LicenseEnforcementServiceTest 7, LicenseFileParserTest 3, LicenseSignatureVerifierTest 3 / 신규 17개: SystemAdminRetentionPolicyTest 5, UserServiceTest 8, ProjectControllerAuthorizationTest 3, GlobalExceptionHandlerTest +1). 동시 강등 통합 테스트 `LastActiveAdminConcurrencyIT`(Testcontainers, `mvn verify` 전용)는 작성·컴파일만 했고 이 환경에서는 실행하지 못함
+7. **DoD**: ADR-015 "검증 (DoD)" 1~17. developer가 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 백엔드 항목을 실측했고(동시 강등은 psql 세션 락 + 병렬 curl), 화면 항목(8·9·15·16d)은 qa-tester 브라우저 확인 대상
+8. **qa-tester 결과(2026-10-06)**: 판정 가능한 DoD 전부 PASS. 화면 항목 DoD 7·8·9·15·16d는 코드상 PASS(브라우저 미확인). `LastActiveAdminConcurrencyIT` 미실행(이 환경 Testcontainers 불가). 검증 중 별도 결함 2건 발견 → ADR-016으로 수정(아래)
+
+### v4 유지보수 — 세션 사용자 상태 요청마다 재검증 + User lost update 방지 (ADR-016) ✅ 구현 완료 (2026-10-06, qa-tester 검증 통과)
+1. 결함 1 [High](qa-tester ADR-015 검증 중 발견): 강등·비활성화된 사용자의 기존 세션이 이전 권한을 유지해 자기 복권(`PUT /api/users/{본인} {systemRole:ADMIN, enabled:true}` 200)·ADMIN 생성(201)·비활성 USER 쓰기(201)가 가능했음 → `com.lightalm.security.SessionPrincipalRefreshFilter`(`OncePerRequestFilter`, `SecurityConfig`에서 `AuthorizationFilter` 앞에 `addFilterBefore`, 빈 미등록). 요청마다 `UserRepository.findById` — 비활성/삭제면 세션 무효화 + `401`, `systemRole` 변경이면 principal/authorities 교체 + 세션 저장
+2. 결함 2 [Low]: `User` 엔티티 전체 컬럼 UPDATE로 인한 lost update(활성 ADMIN 0명 가능) → `com.lightalm.domain.User`에 `@DynamicUpdate`
+3. 마이그레이션 없음(V18 최신 유지)
+4. 테스트: `mvnw test` 198 → 208개(신규 10개: SessionPrincipalRefreshFilterTest 7, SessionPrincipalRefreshMethodSecurityTest 2, UserDynamicUpdateMappingTest 1)
+5. **DoD**(qa-tester 판정): (a) ADMIN 세션 유지 중 다른 ADMIN이 그 사용자를 `USER`+`enabled=false`로 바꾸면, 기존 세션의 자기 복권 `PUT`·`POST /api/users`·`GET /api/auth/me`가 모두 `401`, DB 불변 (b) `USER`로만 강등(활성 유지)하면 기존 세션의 `@PreAuthorize` ADMIN API(`GET/POST /api/users`, `PUT /api/users/{id}`, `POST /api/projects`)가 `403`, `GET /api/auth/me`가 `systemRole:USER`, 멤버가 아닌 프로젝트 조회 `403`(서비스 `isAdmin()` 반영). 재승격하면 같은 세션에서 다시 `200` (c) 비활성화된 USER의 기존 세션으로 요구사항 생성·조회 `401` (d) 정상 로그인 200, 잘못된 비밀번호 401, 비활성 계정 로그인 401, CSRF 토큰 없는 POST 403, 비인증 `/api/auth/me` 401, `/api/public/theme` 200, 로그아웃 후 `/api/auth/me` 401 (e) email만 수정하는 `PUT /api/users/{id}`의 SQL이 `update users set email=?,updated_at=? where id=?`(system_role/enabled 미포함). developer가 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 (a)~(e) 실측

@@ -1,4 +1,4 @@
-> Owner: architect · 구현은 frontend-developer | Status: current | Last-reviewed: 2026-10-05
+> Owner: architect · 구현은 frontend-developer | Status: current | Last-reviewed: 2026-10-05 (ADR-015 반영)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 5. 프론트엔드 주요 화면 단위
@@ -7,9 +7,8 @@
 | 경로 | 화면 | 인증 |
 |---|---|---|
 | `/login` | 로그인 | 비인증 전용 |
-| `/signup` | 회원가입(신규, §5.16) | 비인증 전용 |
 | `/` | 프로젝트 목록 (내가 속한 프로젝트) | 인증필요 |
-| `/projects/new` | 프로젝트 생성 | 인증필요 |
+| `/projects/new` | 프로젝트 생성 — ADR-015 D6: `AdminRoute` 아래로 이동, 비-ADMIN이 URL로 직접 들어오면 `/`로 리다이렉트 | 인증필요(ADMIN) |
 | `/projects/:projectId` | 프로젝트 대시보드 | 인증필요 |
 | `/projects/:projectId/requirements` | 요구사항 목록 | 인증필요 |
 | `/projects/:projectId/requirements/:reqId` | 요구사항 상세 | 인증필요 |
@@ -18,7 +17,6 @@
 | `/projects/:projectId/traceability` | 추적성 매트릭스 | 인증필요 |
 | `/projects/:projectId/settings` | 프로젝트 설정(멤버, GitHub/Jenkins 연동) | 인증필요(PROJECT_ADMIN+) |
 | `/admin/users` | 사용자 관리 | 인증필요(ADMIN) |
-| `/admin/licenses` | 라이센스 관리(신규, §5.17) | 인증필요(ADMIN) |
 | `/admin/theme` | 테마 설정(신규, §5.23) | 인증필요(ADMIN) |
 | `/my-tasks` | 개인화된 대시보드 — 전체 프로젝트에 걸쳐 내게 할당된 이슈/요구사항 모아보기(신규: 마감 임박/기한 초과 포함, 04-api.md §4.11) | 인증필요 |
 | `/projects/:projectId/test-cases` | 테스트케이스 목록(§5.6) | 인증필요 |
@@ -34,11 +32,12 @@
 **로그인 (`/login`)**
 - 아이디/비밀번호 입력 폼, 로그인 실패 시 에러 메시지
 - 성공 시 `/`로 리다이렉트, AuthContext에 사용자 정보 저장
-- "계정이 없으신가요? 회원가입" 링크 → `/signup`(신규, §5.16)
+- 회원가입 링크 없음(ADR-015) — 폼 아래에 링크 없는 안내 문구 "계정이 필요하면 시스템 관리자에게 요청하세요."만 표시. 계정은 System Admin이 `/admin/users`에서 생성
 
 **프로젝트 목록 (`/`)**
 - 카드 목록(프로젝트명, 키, 상태 뱃지) — 내가 접근 권한을 가진 프로젝트만 표시(아래 "프로젝트 노출 권한" 참고)
-- "새 프로젝트" 버튼 → `/projects/new`
+- "새 프로젝트" 버튼 → `/projects/new` — **System Admin(`user.systemRole === 'ADMIN'`)에게만 노출**(ADR-015 D6, `useAuth()` 사용, `TopNavbar` 관리자 링크와 같은 패턴)
+- 빈 목록 안내문: ADMIN이면 "접근 가능한 프로젝트가 없습니다. 새 프로젝트를 만들어 보세요.", ADMIN이 아니면 "참여 중인 프로젝트가 없습니다. 시스템 관리자나 프로젝트 관리자에게 멤버 추가를 요청하세요."
 - (미구현) 키워드 검색창 — 최초 설계에는 있었으나 이번 구현 범위에는 포함하지 않았다. 추가하려면 04-api.md §4.4의 `GET /api/projects?keyword=` 쿼리 파라미터부터 백엔드에 구현해야 한다.
 
 **프로젝트 노출 권한**
@@ -88,10 +87,15 @@
 - 탭: 일반 정보 / 멤버 관리 / GitHub 연동 / Jenkins 연동 / **필드(§5.18) / 폼 레이아웃(§5.19) / 열거형(§5.20) / 워크플로우(§5.21)** (신규 4개 탭, v4 확장, PROJECT_ADMIN+ 전용)
 - GitHub 탭: repoOwner, repoName, accessToken(마스킹), webhookSecret, Webhook URL 안내 문구 표시
 - Jenkins 탭: baseUrl, jobName, apiUser, apiToken(마스킹), Webhook 설정 안내 문구 표시
+- 멤버 관리 탭(ADR-015 D1): 멤버 목록의 역할 드롭다운과 멤버 추가 역할 드롭다운 2곳의 라벨이 "Project Admin"/"Project Assignable"/"Project User"(value는 `PROJECT_ADMIN`/`MEMBER`/`VIEWER` 그대로), 옵션 순서는 권한이 높은 쪽부터. 추가 시 기본 선택값은 `MEMBER`(Project Assignable)
+
+**역할 표시명 매핑 (ADR-015 D1)** — `frontend/src/auth/roleDisplayNames.ts` 한 곳에만 둔다: `SYSTEM_ROLE_DISPLAY_NAMES`(`ADMIN`→System Admin, `USER`→User), `PROJECT_ROLE_DISPLAY_NAMES`(`PROJECT_ADMIN`→Project Admin, `MEMBER`→Project Assignable, `VIEWER`→Project User), 드롭다운 순서 `SYSTEM_ROLE_OPTIONS`(`USER`,`ADMIN`)·`PROJECT_ROLE_OPTIONS`(`PROJECT_ADMIN`,`MEMBER`,`VIEWER`). 화면에 역할 값을 그대로 출력하지 않고, `<option value>`는 원래 값을 쓴다. `ProjectLayout`/`ReviewCyclePanel`/`BaselineListPage`/`ProtectedRoute`/`TopNavbar`는 역할 값을 비교만 하므로 변경 없음.
 
 **사용자 관리 (`/admin/users`)**
 - 사용자 테이블(아이디/이메일/이름/시스템 역할/활성화 여부)
 - 생성/수정 모달, 비활성화 토글
+- 시스템 역할 드롭다운(목록·생성 모달)의 라벨은 "User"/"System Admin"(ADR-015 D1). 열 제목 "시스템 역할"은 유지
+- 역할 변경(`PUT /api/users/{id}`)·비활성화(`DELETE /api/users/{id}`)가 실패하면 서버 `message`를 테이블 위 빨간 안내 영역에 표시하고(특히 `400 LAST_ACTIVE_ADMIN` — 04-api.md §4.3), 사용자 목록 쿼리를 무효화해 다시 불러와 드롭다운을 서버 값(원래 값)으로 되돌린다(ADR-015 §3.7). 다음 성공 시 안내는 사라진다. 마지막 ADMIN의 컨트롤을 미리 비활성화하지는 않는다(최종 판정은 서버)
 
 **내 작업 (`/my-tasks`) — 개인화된 대시보드로 확장(신규)**
 - `GET /api/me/dashboard`(04-api.md §4.11) 하나로 화면을 구성한다. 로그인 직후에도 바로 봐도 유용하도록, 원한다면 로그인 후 첫 화면을 `/`(프로젝트 목록) 대신 이 화면으로 바꾸는 것도 고려할 수 있지만, 이번 버전은 기존대로 `/`을 유지하고 `/my-tasks`는 헤더 링크로 바로 갈 수 있게만 한다(§5.3).
@@ -104,7 +108,7 @@
 
 최초 설계는 인증 필요 라우트 전체(`/`, `/projects/**`, `/admin/users`, `/my-tasks`)를 감싸는 **단일** `AppLayout` 컴포넌트를 상정했지만, 실제 구현은 **레이아웃을 두 개로 분리**했다(기능적으로는 동등하다).
 
-- **`TopNavbar`** (`/`, `/my-tasks`, `/admin/users`, `/admin/licenses`, `/admin/theme`에서 사용): 좌측 "Light ALM" 로고(클릭 시 `/`로 이동, 홈 버튼 역할) + "내 작업"(`/my-tasks`) 링크 + "사용자 관리"(`/admin/users`, 시스템 `ADMIN`에게만 조건부 노출) 링크 + "라이센스 관리"(`/admin/licenses`, 시스템 `ADMIN`에게만 조건부 노출, §5.17) 링크 + **"테마 설정"(`/admin/theme`, 시스템 `ADMIN`에게만 조건부 노출, 신규 §5.23, ADR-014)** 링크. 우측에 **라이트/다크 모드 토글 버튼(신규, ADR-014 — 모든 사용자에게 노출, ADMIN 제한 없음. 클릭 시 네트워크 호출 없이 즉시 `<html data-color-mode>` 속성과 `localStorage`만 갱신하는 개인 선호 설정)**, 로그인한 사용자명, 로그아웃 버튼. **별도의 "프로젝트 목록" 텍스트 링크는 없고, 로고 클릭이 그 역할을 겸한다**(최초 설계는 로고와 별개로 "① 프로젝트 목록" 링크도 두는 안이었으나 실제로는 로고 하나로 통합).
+- **`TopNavbar`** (`/`, `/my-tasks`, `/projects/new`, `/admin/users`, `/admin/theme`에서 사용): 좌측 "Light ALM" 로고(클릭 시 `/`로 이동, 홈 버튼 역할) + "내 작업"(`/my-tasks`) 링크 + "사용자 관리"(`/admin/users`, 시스템 `ADMIN`에게만 조건부 노출) 링크 + **"테마 설정"(`/admin/theme`, 시스템 `ADMIN`에게만 조건부 노출, 신규 §5.23, ADR-014)** 링크. 우측에 **라이트/다크 모드 토글 버튼(신규, ADR-014 — 모든 사용자에게 노출, ADMIN 제한 없음. 클릭 시 네트워크 호출 없이 즉시 `<html data-color-mode>` 속성과 `localStorage`만 갱신하는 개인 선호 설정)**, 로그인한 사용자명, 로그아웃 버튼. **별도의 "프로젝트 목록" 텍스트 링크는 없고, 로고 클릭이 그 역할을 겸한다**(최초 설계는 로고와 별개로 "① 프로젝트 목록" 링크도 두는 안이었으나 실제로는 로고 하나로 통합).
 - **`ProjectLayout`** (`/projects/:projectId/**`에서 사용): 좌측 사이드바 최상단에 "← 프로젝트 목록" 링크(클릭 시 `/`) + 현재 프로젝트명/키, 그 아래 대시보드/요구사항/이슈/추적성/설정 내비게이션, 하단에 사용자명/로그아웃. 이 부분은 최초 설계와 동일하게 구현됨. **(신규, ADR-013, 2026-10-03)** "요구사항" 링크와 "이슈" 링크 사이에 `WorkItemTreePanel`(§5.22) 컴포넌트를 삽입한다 — 별도 패널이 아니라 기존 `<nav>` 안에 끼워 넣는 아코디언 섹션이다.
 - **세션 복원 및 새로고침 대응**: `AuthContext`(`frontend/src/auth/AuthContext.tsx`)는 마운트 시 `loading` state를 `true`로 시작하고 `GET /api/auth/me`를 호출, 응답(성공/실패 모두) 후 `loading`을 `false`로 내린다. `ProtectedRoute`/`GuestOnlyRoute`는 `loading === true`인 동안 전체 화면 로딩 인디케이터만 보여주고, 완료 후에만 인증 여부에 따라 원래 경로 렌더링 또는 `/login` 리다이렉트를 수행한다 — **이 부분은 최초 설계대로 정확히 구현되어 있고 실제로 문제가 없었다.**
 - 다만 세션 확인 요청이 네트워크 오류로 실패한 경우 "다시 시도" 버튼이 있는 에러 화면을 보여주는 것은 **미구현**이다(현재는 실패 시 조용히 `user = null` 처리하여 `/login`으로 보냄).
@@ -204,21 +208,13 @@ PROJECT_ADMIN 전용 메뉴. 대기중인 승인 요청 리스트, 각 항목에
 
 ---
 
-## v4 확장 화면 (2026-10-03, 아직 미구현 — ADR-011·ADR-012)
+## v4 확장 화면 (2026-10-03 — ADR-011(ADR-015로 제거)·ADR-012. 구현 상태는 CURRENT-STATE.md §1)
 
-### 5.16 회원가입 (`/signup`)
-- 비인증 전용(`GuestOnlyRoute`로 감싸, 로그인 상태에서는 `/`로 리다이렉트).
-- 입력 필드: ID(username), EMAIL, 이름(fullName), 비밀번호(password), 비밀번호 확인(passwordConfirm — 프론트 전용 검증 필드이며 백엔드에도 함께 전송해 재검증, 04-api.md §4.22 참고). `password`/`passwordConfirm`은 제품 오너의 원 요청에는 없었으나 로그인에 필수라 architect가 추가한 필드다(ADR-011 참고).
-- 화면 진입 시 `GET /api/public/license-status`(§4.23)를 먼저 호출해 `signupAllowed=false`면 폼 대신 "현재 가입이 비활성화되어 있습니다(사유: {reason})" 안내만 표시한다.
-- 제출 성공(`201`) 시 자동 로그인하지 않는다. "가입이 완료되었습니다. 로그인해주세요" 메시지와 함께 `/login`으로 이동.
-- 실패 응답(`403 LICENSE_INVALID`/`LICENSE_SEAT_LIMIT_EXCEEDED`, `400 VALIDATION_ERROR` 등)은 폼 상단에 에러 메시지로 표시.
-- "이미 계정이 있으신가요? 로그인" 링크 → `/login`.
+### 5.16 회원가입 (`/signup`) — **제거됨(ADR-015, 2026-10-05)**
+`SignupPage.tsx`와 `/signup` 라우트, `api/auth.ts`의 `signup()`을 삭제했다. `/signup` 북마크로 들어오면 별도 리다이렉트 없이 라우터의 기존 미매칭 경로 동작을 따른다. 계정은 System Admin이 `/admin/users`에서 만든다.
 
-### 5.17 라이센스 관리 (`/admin/licenses`)
-- 시스템 `ADMIN` 전용. `TopNavbar`의 "사용자 관리" 옆에 조건부 노출(§5.3).
-- 현재 활성 라이센스 카드: 조직명 / 라이센스 타입 / 시트 사용량(`seatsUsed / seatLimit`, 프로그레스 바) / 만료일(D-day 표시, 만료 시 적색 경고).
-- 업로드 이력 테이블(파일명/업로드자/업로드일시/상태 ACTIVE·SUPERSEDED·REVOKED).
-- "라이센스 파일 업로드" 버튼 → 파일 선택 다이얼로그 → `POST /api/admin/licenses`(§4.23, multipart). 서명 검증 실패/만료 파일 등 에러는 다이얼로그 내 메시지로 표시.
+### 5.17 라이센스 관리 (`/admin/licenses`) — **제거됨(ADR-015, 2026-10-05)**
+`AdminLicensesPage.tsx`, `/admin/licenses` 라우트, `TopNavbar`의 "라이센스 관리" 링크, `api/license.ts`, `types/license.ts`, `types/common.ts`의 `LicenseType`/`LicenseStatus` 타입을 삭제했다.
 
 ### 5.18 프로젝트 설정 — 필드 탭
 `/projects/:projectId/settings`의 "필드" 탭(§5.2, PROJECT_ADMIN+). target_type(요구사항/이슈/테스트케이스) 선택 탭 안에 필드 목록 테이블(필드명/타입/필수여부/상태) + "필드 추가" 버튼(데이터 타입 선택 시 `SINGLE_SELECT`/`MULTI_SELECT`면 §5.20에서 만든 열거형 집합을 선택하는 드롭다운이 추가로 노출). 비활성화(소프트 삭제)는 확인 다이얼로그 후 `status=DEPRECATED`로 전환 — 하드 삭제 버튼은 두지 않는다. → 04-api.md §4.24
@@ -232,7 +228,7 @@ PROJECT_ADMIN 전용 메뉴. 대기중인 승인 요청 리스트, 각 항목에
 "열거형" 탭(PROJECT_ADMIN+). `PRIORITY` 확장 집합(있다면, 처음 생성 시 기존 LOW/MEDIUM/HIGH/CRITICAL 4개가 `is_system_default`로 자동 표시되고 수정 불가·삭제 불가 뱃지가 붙음)과 커스텀 필드 전용 집합 목록을 함께 보여준다. 각 집합을 펼치면 값 목록(값 키/라벨/순서/상태) + "값 추가" 폼. 요구사항/이슈/테스트케이스의 **상태(Status) 값** 확장은 이 탭에서 지원하지 않는다(ADR-012 §C.1) — "집합 생성" 폼의 `baseEnum` 선택지에 `PRIORITY` 외 상태 관련 옵션은 노출하지 않는다. → 04-api.md §4.26
 
 ### 5.21 프로젝트 설정 — 워크플로우 탭
-"워크플로우" 탭(PROJECT_ADMIN+). target_type(요구사항/이슈만, 테스트케이스는 이 탭에서 제외) 선택 → 상태 전이 매트릭스(행=from, 열=to) 체크박스 UI, 체크한 셀마다 "최소 역할"(PROJECT_ADMIN/MEMBER/VIEWER, 생략 시 MEMBER) 드롭다운. 규칙이 하나도 없으면 "현재 자유 전이 모드입니다 — 규칙을 추가하면 그 순간부터 여기 표시되지 않은 전이는 차단됩니다"라는 안내 배너를 표시한다. 저장된 규칙은 §5.5의 Workflow 차트에도 동일하게 반영되어, 상세/대시보드 화면의 차트가 이 화이트리스트를 그대로 그린다. → 04-api.md §4.27
+"워크플로우" 탭(PROJECT_ADMIN+). target_type(요구사항/이슈만, 테스트케이스는 이 탭에서 제외) 선택 → 상태 전이 매트릭스(행=from, 열=to) 체크박스 UI, 체크한 셀마다 "최소 역할"(PROJECT_ADMIN/MEMBER/VIEWER, 생략 시 MEMBER) 드롭다운. **[ADR-015 P3]** 드롭다운 라벨은 표시명을 쓴다 — "Project Assignable+ (기본값)"(value `''`, 생략=MEMBER)/"Project Assignable+"(`MEMBER`)/"Project Admin+"(`PROJECT_ADMIN`). **VIEWER는 새로 고를 수 있는 옵션에서 뺐다**(Project User는 읽기 전용이라 상태 전이 불가). 이미 `allowedRole=VIEWER`로 저장된 규칙만 그 셀의 드롭다운에 "Project User+ (실제로는 Project Assignable+와 동일)" 옵션을 덧붙여 정상 표시한다. 자유 전이 모드 안내문의 예외 문구는 "(System Admin과 이 프로젝트의 Project Admin은 규칙과 무관하게 항상 모든 전이가 가능합니다.)"(`WorkflowRuleSettingsTab.tsx`). 규칙이 하나도 없으면 "현재 자유 전이 모드입니다 — 규칙을 추가하면 그 순간부터 여기 표시되지 않은 전이는 차단됩니다"라는 안내 배너를 표시한다. 저장된 규칙은 §5.5의 Workflow 차트에도 동일하게 반영되어, 상세/대시보드 화면의 차트가 이 화이트리스트를 그대로 그린다. → 04-api.md §4.27
 
 ---
 
@@ -260,7 +256,7 @@ ADR-013 참고. 전역 탐색기가 아니라 **현재 진입한 프로젝트 �
 ADR-014 참고. 두 개의 독립된 UI가 이 절에 함께 묶여 있다 — 하나는 ADMIN 전용 관리자 화면(조직 설정), 다른 하나는 모든 사용자가 쓰는 토글(개인 설정)이다.
 
 **관리자 화면 `/admin/theme` (ADMIN 전용)**
-- 보호 패턴은 기존 `/admin/users`·`/admin/licenses`와 동일: `AdminRoute`로 감싸고, `TopNavbar`에 ADMIN에게만 조건부 노출(§5.3).
+- 보호 패턴은 기존 `/admin/users`와 동일(`/admin/licenses`는 ADR-015로 제거): `AdminRoute`로 감싸고, `TopNavbar`에 ADMIN에게만 조건부 노출(§5.3).
 - `GET /api/admin/theme-settings`(04-api.md §4.28)로 현재 설정 + 선택 가능한 프리셋 전체 목록을 받아, **5개 색상 스와치 카드**(`DEFAULT`/`RED`/`BLUE`/`GREEN`/`PURPLE`)를 나열한다. 현재 선택된 프리셋은 테두리 강조로 표시.
 - 스와치 선택 → "저장" 버튼 → `PUT /api/admin/theme-settings` 호출. 성공 시 화면 새로고침 없이 전역 `ThemeProvider` 상태를 갱신해 `TopNavbar`를 포함한 현재 세션의 색상이 즉시 바뀐다. "마지막 변경: {fullName}, {updatedAt}" 보조 텍스트를 함께 표시.
 - 허용되지 않은 값 응답(`400 VALIDATION_ERROR`)은 폼 상단에 에러 메시지로 표시.
@@ -271,5 +267,5 @@ ADR-014 참고. 두 개의 독립된 UI가 이 절에 함께 묶여 있다 — �
 - **알려진 제약(의도적 범위 제한, ADR-014 §1)**: 다크 모드 토큰(표면/텍스트/보더 계열)은 이번 범위에서 `TopNavbar`와 `/admin/theme` 화면에만 적용된다. 기존 27개 화면(요구사항/이슈/테스트케이스 목록 등)은 Tailwind 기본 색상 클래스를 직접 하드코딩하고 있어, 토글을 켜도 해당 화면들은 라이트 모드 색상이 그대로 보인다. 전체 화면 리트로핏은 이 ADR의 범위 밖이며 필요해지면 별도 ADR/Phase로 다룬다.
 
 **부트스트랩(색상 프리셋만 — 라이트/다크와는 무관)**
-- 앱 루트 렌더링 전에 `localStorage`에 캐시된 색상 프리셋을 동기적으로 `data-theme-color` 속성에 적용(깜빡임 방지) → 마운트 후 `GET /api/public/theme`(04-api.md §4.28, 공개)을 호출해 실제 값과 다르면 갱신. 이 호출은 비인증 상태에서도 항상 성공하므로 `/login`·`/signup` 화면도 앱 루트 안에 있어 별도 처리 없이 동일하게 적용된다.
+- 앱 루트 렌더링 전에 `localStorage`에 캐시된 색상 프리셋을 동기적으로 `data-theme-color` 속성에 적용(깜빡임 방지) → 마운트 후 `GET /api/public/theme`(04-api.md §4.28, 공개)을 호출해 실제 값과 다르면 갱신. 이 호출은 비인증 상태에서도 항상 성공하므로 `/login` 화면도 앱 루트 안에 있어 별도 처리 없이 동일하게 적용된다.
 → 04-api.md §4.28, 03-data-model.md §3.30

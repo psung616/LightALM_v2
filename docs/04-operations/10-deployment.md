@@ -1,4 +1,4 @@
-> Owner: devops (미생성, orchestrator가 임시 겸임) | Status: current | Last-reviewed: 2026-08-08
+> Owner: devops (미생성, orchestrator가 임시 겸임) | Status: current | Last-reviewed: 2026-10-05 (ADR-015 부록 F 추가)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 11. 실행/배포
@@ -171,3 +171,19 @@ git push origin main   # 두 저장소에 동시 반영
 - **기존 마이그레이션 파일(V1~V7)은 절대 수정하지 않는다.** 이미 `ALM_Project` DB에 적용된 이력이 있어서, 파일을 고치면 체크섬이 다시 어긋나거나(현재는 `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 우회 중) 실제 스키마와 또 어긋날 수 있다. 스키마를 바꿔야 하면 항상 새 `V{n+1}__설명.sql`을 추가한다(가능하면 `ADD COLUMN IF NOT EXISTS` 등 idempotent하게).
 - Jenkinsfile에 DB 계정(`postgres`/`postgres`)이 평문으로 들어있다 — 사내 전용 저장소이긴 하지만 운영 전환 시 Jenkins Credentials로 옮기는 게 안전하다.
 - 배포 실패 시: Jenkins 해당 빌드의 Console Output에서 `docker build`/`docker run` 단계 오류 확인, 또는 컨테이너가 뜨자마자 죽는 경우 Jenkinsfile Deploy 스테이지 마지막에 `docker logs lightalm-backend` 한 줄을 임시로 추가해서 원인을 본다(현재는 `docker ps` 상태 체크만 남겨둠).
+
+## 부록 F. 권한 체계 변경(ADR-015) 운영 메모 (2026-10-05)
+
+- **`LICENSE_SIGNING_SECRET` 제거**: 라이센스 기능 제거로 `application.yml`의 `light-alm.license.signing-secret`가 삭제됐다. 레포의 `docker-compose.yml`/`Jenkinsfile`은 원래 이 변수를 참조하지 않았다(2026-10-05 grep 확인, 수정 없음). 운영 Jenkins/컨테이너 환경에 이 변수를 따로 넣어둔 적이 있다면 이제 아무도 읽지 않으므로 정리해도 된다(남아 있어도 동작 영향 없음).
+- **배포 전 확인 권장**: 운영 DB의 활성 System Admin 수.
+  ```sql
+  SELECT id, username FROM users WHERE system_role = 'ADMIN' AND enabled = true ORDER BY id;
+  ```
+  1명뿐이면 배포 후 그 계정은 ADMIN 해제·비활성화가 `400 LAST_ACTIVE_ADMIN`으로 막힌다(의도된 동작). 담당자 교체 시에는 새 사용자에게 먼저 System Admin을 준 뒤 기존 계정을 해제한다.
+- **프로젝트 생성 제한**: 배포 후 `USER`는 프로젝트를 만들 수 없다(`403`). System Admin이 만든 뒤 멤버 탭에서 담당자를 Project Admin으로 추가한다. 기존 프로젝트·멤버는 그대로다.
+- **회원가입 경로 제거**: `/signup`·`POST /api/auth/signup`이 없어진다. 이미 가입한 계정은 일반 `USER`로 그대로 로그인할 수 있다.
+- **활성 ADMIN 0명 복구(DB 직접 수정)**: 애플리케이션은 활성 ADMIN이 0명이 되는 변경을 막지만, `psql` 등으로 `users`를 직접 UPDATE하면 0명이 될 수 있다. 이때는 DB에서만 복구할 수 있다.
+  ```sql
+  UPDATE users SET enabled = true, system_role = 'ADMIN' WHERE username = '<복구할 계정>';
+  ```
+- 스키마 변경 없음(V18 최신 유지). `licenses` 테이블·데이터는 그대로 남는다.
