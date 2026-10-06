@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-05 (ADR-015 반영)
+> Owner: architect | Status: current | Last-reviewed: 2026-10-06 (V19 운영 드리프트 보정 반영)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 3. 데이터 모델 (엔티티 & DB 테이블)
@@ -67,7 +67,7 @@ UNIQUE (project_id, user_id)
 | title | VARCHAR(255) | NOT NULL |
 | description | TEXT | NULL |
 | type | VARCHAR(20) | NOT NULL, CHECK IN ('FUNCTIONAL','NON_FUNCTIONAL','BUSINESS') |
-| priority | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL'), DEFAULT 'MEDIUM' |
+| priority | VARCHAR(20) | NOT NULL, DEFAULT 'MEDIUM' — **DB CHECK 없음**(최초 `CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL')`는 V15·V19로 제거, 유효성은 애플리케이션 `EnumerationValueValidator` — §3.28) |
 | status | VARCHAR(20) | NOT NULL, CHECK IN ('DRAFT','APPROVED','IN_PROGRESS','IMPLEMENTED','VERIFIED','REJECTED'), DEFAULT 'DRAFT' |
 | requirement_level | VARCHAR(10) | NOT NULL, CHECK IN ('PRD','SRS'), DEFAULT 'SRS' (신규 — ADR-013. `type`(성격 분류)과 다른 축으로, 문서 레벨(제품 수준 PRD vs 소프트웨어 수준 SRS)만 구분. 기존 데이터는 전부 `'SRS'`로 백필. `parent_requirement_id`와의 상하 관계는 강제하지 않음 — 사용자 판단에 맡김) |
 | parent_requirement_id | BIGINT | FK → requirements.id, ON DELETE SET NULL, NULL 허용 (상위 요구사항) |
@@ -86,7 +86,7 @@ UNIQUE (project_id, user_id)
 | title | VARCHAR(255) | NOT NULL |
 | description | TEXT | NULL |
 | type | VARCHAR(20) | NOT NULL, CHECK IN ('BUG','TASK','STORY','IMPROVEMENT') |
-| priority | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL'), DEFAULT 'MEDIUM' |
+| priority | VARCHAR(20) | NOT NULL, DEFAULT 'MEDIUM' — **DB CHECK 없음**(최초 `CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL')`는 V15·V19로 제거, 유효성은 애플리케이션 `EnumerationValueValidator` — §3.28) |
 | status | VARCHAR(20) | NOT NULL, CHECK IN ('TODO','IN_PROGRESS','IN_REVIEW','DONE','CLOSED'), DEFAULT 'TODO' |
 | reporter_id | BIGINT | FK → users.id, ON DELETE SET NULL |
 | assignee_id | BIGINT | FK → users.id, ON DELETE SET NULL, NULL 허용 |
@@ -198,7 +198,7 @@ Project 1---N ApprovalRequest (target = Requirement|Issue, MVP는 Requirement만
 | preconditions | TEXT | NULL |
 | steps | TEXT | NOT NULL (번호 매긴 절차) |
 | expected_result | TEXT | NOT NULL |
-| priority | VARCHAR(20) | NOT NULL, CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL'), DEFAULT 'MEDIUM' |
+| priority | VARCHAR(20) | NOT NULL, DEFAULT 'MEDIUM' — **DB CHECK 없음**(최초 `CHECK IN ('LOW','MEDIUM','HIGH','CRITICAL')`는 V15·V19로 제거, 유효성은 애플리케이션 `EnumerationValueValidator` — §3.28) |
 | status | VARCHAR(20) | NOT NULL, CHECK IN ('DRAFT','READY','DEPRECATED'), DEFAULT 'DRAFT' |
 | created_by | BIGINT | FK → users.id, ON DELETE SET NULL |
 | created_at | TIMESTAMP | NOT NULL DEFAULT now() |
@@ -569,6 +569,8 @@ UNIQUE (project_id, enum_key)
 UNIQUE (enumeration_set_id, value_key)
 
 > **기존 테이블 영향(하위 호환성 — 반드시 확인)**: 프로젝트가 `base_enum='PRIORITY'` 집합을 최초 생성하는 순간, `requirements.priority`/`issues.priority`/`test_cases.priority`(§3.4·§3.5·§3.11)에 걸린 기존 CHECK 제약(`chk_..._priority`류, `V1__init.sql`/`V3__test_cases.sql` 유래, 정확한 제약명은 구현 시점에 원문 확인)을 제거하고, 검증 책임을 신규 `EnumerationValueValidator.requireValidValue(projectId, "PRIORITY", value)`(애플리케이션 레벨, 단일 진입점)로 옮긴다. 컬럼 단위 제약이라 **한 프로젝트라도 PRIORITY를 확장하면 전체 프로젝트에 대해 이 컬럼의 DB 레벨 안전장치가 느슨해진다.** `PRIORITY` 집합을 만들지 않은 프로젝트는 이 validator가 기존 Java `Priority` enum 값으로 검증하므로 동작은 바뀌지 않는다. 상태(`status`) 컬럼의 CHECK 제약은 그대로 유지한다(위 서비스 레이어 제약 참고).
+
+> **[2026-10-06 운영 드리프트 보정 — `V19__drop_legacy_priority_check_constraints.sql`]** 실제 제거는 `V15__create_enumeration_tables.sql`이 V1/V3 원문 제약명(`chk_requirements_priority`/`chk_issues_priority`/`chk_test_cases_priority`)으로 `DROP CONSTRAINT IF EXISTS` 해서 했다. 그런데 운영 공용 DB(`ALM_Project`)는 예전 V1로 만들어져(V7과 같은 드리프트, ADR-002) priority CHECK 이름이 달랐고(PostgreSQL 자동 이름 `*_priority_check`로 추정), V15가 아무것도 지우지 못해 LOW~CRITICAL CHECK가 남아 있었다 — 운영에서 PRIORITY 열거형에 추가한 `BLOCKER`로 요구사항을 만들면 500이 났다. V19는 `requirements`/`issues`/`test_cases`에서 **참조 컬럼(`pg_constraint.conkey`)이 정확히 `priority` 하나인 CHECK 제약**(정의문에 `priority` 포함도 이중 확인)을 이름과 무관하게 모두 DROP하는 PL/pgSQL `DO` 블록이다(멱등 — 대상이 없으면 no-op, `type`/`status`/`requirement_level` 등 다른 컬럼 CHECK와 `priority`를 포함한 다중 컬럼 CHECK는 대상 아님). 결과적으로 V19 이후 세 테이블의 `priority` 컬럼에는 어떤 DB CHECK도 없다. 같은 날 `GlobalExceptionHandler`에 `DataIntegrityViolationException` → `409 DATA_INTEGRITY_VIOLATION` 핸들러를 추가해 이후 유사한 스키마 드리프트가 500이 아니라 409로 드러나게 했다(04-api.md §4.1). ADR-012 §C 각주, 10-deployment.md 부록 G 참고.
 
 ### 3.29 `workflow_transition_rules` (ADR-012 §D)
 대상은 `REQUIREMENT`/`ISSUE`만(`TEST_CASE`는 이미 상태가 단순해 범위에서 제외, GLOSSARY §2 그룹 2 패턴과 동일).

@@ -37,6 +37,8 @@
 > 2. **(Medium) `enumKey=PRIORITY` + `baseEnum` 생략 집합이 프로젝트 전체의 priority 쓰기를 막았다.** 재현: `POST .../config/enumerations {"enumKey":"PRIORITY","name":"x"}` → 201(값 0개) → 이후 그 프로젝트의 항목 생성/수정이 기본값 MEDIUM 포함 전부 400. 집합 삭제 API가 없어 복구가 곤란했다. 원인: validator는 `enumKey`로 집합을 찾고, 기본값 시드는 `baseEnum=PRIORITY`일 때만 해 두 판별 기준이 어긋났다. 수정: `EnumerationSetService.create()`가 **`enumKey=PRIORITY` ⇔ `baseEnum=PRIORITY`**를 강제한다(어느 방향으로든 어긋나면 400). **이 방식을 고른 이유**: validator의 조회 기준을 baseEnum으로 바꾸는 방안보다 변경 지점이 하나(생성 경로)로 작고, "PRIORITY 집합은 항상 기본값 4개가 시드된 상태로만 존재한다"는 불변식을 생성 시점에 보장하므로 validator·시드·조회 API(`GET .../enumerations/{enumKey}/values`)가 모두 기존 코드 그대로 일관되게 동작한다. 스키마 변경(V19) 불필요. 한계: 이 수정 이전에 이미 만들어진 불일치 집합(예: 로컬 검증 DB의 프로젝트 14)은 자동 정리되지 않는다 — 집합 삭제 API가 없으므로 생기면 DB에서 직접 정리해야 한다.
 > - 단위 테스트 추가: `EnumerationValueValidatorTest` +2, `EnumerationSetServiceTest` +2, `IssueServiceTest`/`RequirementServiceTest`/`TestCaseServiceTest` 각 +1(같은 작업에서 `GlobalExceptionHandlerTest` +2 포함 `mvnw test` 199개 통과). 로컬 docker-compose Postgres + `mvnw spring-boot:run` + curl로 qa-tester 재현 시나리오 재확인: 이슈 13(BLOCKER, 폐기됨)의 제목만 수정 → 200(priority BLOCKER 유지), BLOCKER를 명시해 재전송 → 200, HIGH로 변경 → 200, 다시 BLOCKER로 변경 → 400, BLOCKER로 신규 생성 → 400, 요구사항/테스트케이스(로컬 DB에서 priority를 BLOCKER로 직접 설정해 재현)의 제목만 수정 → 200. `enumKey=PRIORITY`+baseEnum 생략 → 400, `MY_PRIORITY`+`baseEnum=PRIORITY` → 400(집합 생성 안 됨, 이후 이슈 생성 201), `SEVERITY`+baseEnum 생략 → 201, `PRIORITY`+`PRIORITY` → 201(기본값 4개 시드).
 
+> **[2026-10-06 운영 드리프트 보정 각주]** 운영 공용 DB에는 V15가 제거하지 못한 예전 이름의 priority CHECK가 남아 커스텀 PRIORITY 값(BLOCKER) 생성이 500이었다 → `V19__drop_legacy_priority_check_constraints.sql`(이름 무관 priority 단일 컬럼 CHECK DROP) + `409 DATA_INTEGRITY_VIOLATION` 핸들러로 보정. 상세는 §C.3 하단 각주.
+
 # ADR-012: 프로젝트별 Configuration 영역 — 커스텀 필드 / 폼 레이아웃 / 열거형 / 워크플로우 전이 규칙 (비스코프 재검토)
 
 ## 맥락 (Context)
@@ -293,6 +295,14 @@ ALTER TABLE test_cases DROP CONSTRAINT IF EXISTS chk_test_cases_priority;
 -- status 컬럼의 CHECK 제약은 그대로 유지한다 — §C.1에서 상태값 확장은 이번 범위에서 제외했기 때문
 ```
 > 실제 제약명(`chk_requirements_priority` 등)은 구현 시점에 `V1__init.sql` 원문을 확인해 정확히 맞춘다. 이 ADR은 명칭 추정치만 제공한다.
+
+> **[2026-10-06 운영 드리프트 보정 각주 — `V19__drop_legacy_priority_check_constraints.sql`]**
+> - **증상(운영 실측)**: 운영(`alm.ondalprincess.synology.me`)에서 프로젝트 PRIORITY 열거형에 `BLOCKER`를 추가(성공)한 뒤 `POST /api/projects/4/requirements`에 `priority:"BLOCKER"`로 생성하면 `500 INTERNAL_ERROR`. 같은 프로젝트의 HIGH/CRITICAL/MEDIUM 생성은 정상, 로컬에서는 동일 시나리오 성공.
+> - **원인**: 위 "원문 확인 후 정확히 맞춘다"는 지침대로 V15가 **현재 `V1__init.sql`/`V3__test_cases.sql` 원문**의 제약명으로 `DROP CONSTRAINT IF EXISTS` 했으나, 운영 공용 DB(`ALM_Project`)는 그 원문이 아니라 **예전 버전 V1**로 만들어진 DB였다(V7__fix_due_date_drift.sql과 같은 종류의 드리프트, ADR-002 / 10-deployment.md 부록 E — 체크섬 검증은 `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 우회 중). 예전 V1은 CHECK를 이름 없이 인라인으로 걸어 PostgreSQL 자동 이름(`requirements_priority_check` 등으로 추정 — V3가 `traceability_links_source_type_check` 같은 자동 이름을 DROP하는 것도 같은 흔적)이 붙었고, 그래서 `IF EXISTS`가 조용히 건너뛰어 LOW~CRITICAL CHECK가 운영에만 남았다. 커스텀 PRIORITY 값 INSERT → CHECK 위반 → `GlobalExceptionHandler` catch-all → 500.
+> - **결정 — 새 ADR 없이 이 각주로 처리**: §C의 결정("priority DB CHECK 제거, 검증은 `EnumerationValueValidator`")은 바뀌지 않았고, 운영 DB에 그 결정이 덜 반영된 것을 바로잡는 보정이라 V7 선례와 같이 새 마이그레이션 + 기록으로 처리했다.
+> - **조치 1 — V19**: `requirements`/`issues`/`test_cases`에서 `pg_constraint.conkey`가 정확히 `[priority 컬럼]`이고 정의문(`pg_get_constraintdef`)에 `priority`가 포함된 CHECK 제약을 **이름과 무관하게** 모두 DROP하는 PL/pgSQL `DO` 블록(멱등, 대상 없으면 no-op, 삭제 시 `RAISE NOTICE`로 제약명/정의를 Flyway 로그에 남김). `type`/`status`/`requirement_level` CHECK와 다중 컬럼 CHECK는 건드리지 않는다.
+> - **조치 2 — 500 방지**: `GlobalExceptionHandler`에 `DataIntegrityViolationException` → `409 DATA_INTEGRITY_VIOLATION` 핸들러 추가(제약명·SQL은 응답에 노출하지 않고 WARN 로그에만). 같은 종류의 드리프트가 남아 있어도 500이 아니라 409로 드러난다(04-api.md §4.1).
+> - **로컬 재현·검증(2026-10-06)**: 로컬 docker-compose Postgres(V18)에 운영 추정 상태를 재현(`requirements_priority_check`/`issues_priority_check`/`test_cases_priority_check`를 `NOT VALID`로 추가) → 기존 코드로 커스텀 PRIORITY 값 생성 500 재현 → 핸들러만 적용(`spring.flyway.target=18`)하면 409 → V19 포함 기동 시 Flyway가 세 제약을 DROP(NOTICE 3건) → 요구사항/이슈/테스트케이스 생성 201, 나머지 CHECK 6개(type/status/requirement_level) 유지 및 실제 위반 INSERT 거부 확인. 깨끗한 DB에서 V19 재실행 no-op, 다중 컬럼 CHECK·다른 컬럼 CHECK 미삭제 확인. **운영 반영은 `synology` 배포 후 확인 필요**(CURRENT-STATE.md §6).
 
 #### C.4 API (요약)
 | Method | Path | 설명 | 권한 |

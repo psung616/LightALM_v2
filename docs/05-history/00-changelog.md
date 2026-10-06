@@ -3,6 +3,12 @@
 
 ## 변경 이력
 
+### 2026-10-06 (2) — 운영 DB priority CHECK 드리프트 보정(V19) + 409 DATA_INTEGRITY_VIOLATION
+- 운영에서 PRIORITY 열거형에 추가한 `BLOCKER`로 요구사항 생성 시 500. 원인: 운영 공용 DB가 예전 V1로 만들어져 priority CHECK 이름이 달라 V15의 `DROP CONSTRAINT IF EXISTS chk_..._priority`가 no-op → LOW~CRITICAL CHECK 잔존
+- `V19__drop_legacy_priority_check_constraints.sql` 추가 — `requirements`/`issues`/`test_cases`의 priority 단일 컬럼 CHECK를 이름 무관하게 DROP(`pg_constraint.conkey` 기준 `DO` 블록, 멱등). 새 ADR 없이 ADR-012 §C.3 각주로 기록(결정 불변, V7 선례와 같은 운영 보정)
+- `GlobalExceptionHandler`에 `DataIntegrityViolationException` → `409 DATA_INTEGRITY_VIOLATION` 추가(내부 SQL 메시지 비노출, WARN 로그). `GlobalExceptionHandlerTest` +1, `mvnw test` 209개
+- 로컬에서 운영 상태 재현(500) → 핸들러(409) → V19 적용(201) 검증. 03-data-model.md §3.4·§3.5·§3.11·§3.28, 04-api.md §4.1, 10-deployment.md 부록 G(신규)·E, CURRENT-STATE.md 동기화. **운영 반영은 배포 후 확인 필요**
+
 ### 2026-10-06 — ADR-015 qa-tester 검증 통과, ADR-016 세션 권한 재검증 구현
 - ADR-015 qa-tester 검증 통과(판정 가능한 DoD 전부 PASS, 화면 DoD 7·8·9·15·16d 브라우저 미확인, `LastActiveAdminConcurrencyIT` 미실행)
 - ADR-016 신규(qa-tester 발견 결함 수정): [High] 강등·비활성화된 사용자의 기존 세션이 이전 권한을 유지해 자기 복권·ADMIN 생성이 가능하던 문제 → `SessionPrincipalRefreshFilter`가 요청마다 `users`의 `enabled`/`system_role`을 재검증(비활성/삭제 401 + 세션 무효화, 역할 변경 시 principal/authorities 교체). [Low] `User` 전체 컬럼 UPDATE로 인한 lost update(활성 ADMIN 0명 가능) → `@DynamicUpdate`. 마이그레이션 없음. `mvnw test` 208개. 06-auth.md §6.3·§6.4, 04-api.md §4.1·§4.3, 02-architecture.md §2.3, 08-dev-phases.md, ADR-015 Status, adr/README, CURRENT-STATE.md 동기화

@@ -96,4 +96,29 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getError()).isEqualTo("LAST_ACTIVE_ADMIN");
         assertThat(response.getBody().getMessage()).contains("System Admin");
     }
+
+    /**
+     * 2026-10-06 운영 드리프트 사례: 운영 DB에 남은 예전 이름의 priority CHECK 위반이 500이던 문제.
+     * 409 DATA_INTEGRITY_VIOLATION으로 응답하고, 제약명·SQL 같은 내부 메시지는 응답에 노출하지 않는다.
+     */
+    @Test
+    void handleDataIntegrityViolation_returns409WithoutLeakingSqlDetails() {
+        when(request.getRequestURI()).thenReturn("/api/projects/4/requirements");
+        when(request.getMethod()).thenReturn("POST");
+        String sqlDetail = "ERROR: new row for relation \"requirements\" violates check constraint "
+                + "\"requirements_priority_check\"";
+        org.springframework.dao.DataIntegrityViolationException ex =
+                new org.springframework.dao.DataIntegrityViolationException("could not execute statement",
+                        new java.sql.SQLException(sqlDetail, "23514"));
+
+        ResponseEntity<ErrorResponse> response = handler.handleDataIntegrityViolation(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(409);
+        assertThat(response.getBody().getError()).isEqualTo("DATA_INTEGRITY_VIOLATION");
+        assertThat(response.getBody().getPath()).isEqualTo("/api/projects/4/requirements");
+        assertThat(response.getBody().getMessage())
+                .doesNotContain("requirements_priority_check", "check constraint", "could not execute statement");
+    }
 }

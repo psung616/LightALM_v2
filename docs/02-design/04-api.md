@@ -1,4 +1,4 @@
-> Owner: architect | Status: current | Last-reviewed: 2026-10-06 (ADR-016 반영)
+> Owner: architect | Status: current | Last-reviewed: 2026-10-06 (ADR-016, 409 DATA_INTEGRITY_VIOLATION 반영)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 4. REST API 명세
@@ -19,6 +19,7 @@
 }
 ```
   - **[2026-10-05 구현 각주]** 요청 본문을 DTO로 읽지 못하는 경우(본문 누락, JSON 문법 오류, enum에 없는 값 — 예: `targetType:"FOO"`·소문자 `"requirement"`·`decision:"FOO"`)와 경로 변수/쿼리 파라미터 타입 변환 실패(예: `/baselines/abc`), 필수 쿼리 파라미터 누락도 `400 VALIDATION_ERROR`로 응답한다(`GlobalExceptionHandler`의 `HttpMessageNotReadableException`·`MethodArgumentTypeMismatchException`·`MissingServletRequestParameterException` 핸들러). enum 값 오류는 `message`에 필드 경로와 허용값을 담는다(예: `"itemRefs[0].targetType: 허용되지 않는 값입니다(FOO). 허용값: REQUIREMENT, ISSUE, TEST_CASE"`). 이전에는 전역 catch-all로 떨어져 500이었다(qa-tester Phase 16 반려).
+  - **[2026-10-06 구현 각주]** DB 무결성 제약(CHECK/UNIQUE/FK/NOT NULL) 위반(`DataIntegrityViolationException`)은 `409 DATA_INTEGRITY_VIOLATION`, `message`는 고정 문구 `"데이터 무결성 제약 조건에 위배되어 요청을 처리할 수 없습니다."`로 응답한다. 제약명·SQL 등 내부 메시지는 응답에 넣지 않고 서버 WARN 로그에만 남긴다. 정상 경로에서는 애플리케이션 검증이 먼저 400/404로 막으므로 이 응답은 스키마 드리프트나 동시 요청 경합의 신호다 — 운영 공용 DB에 예전 이름의 priority CHECK가 남아 커스텀 PRIORITY 값 생성이 500이던 사례로 추가했다(`V19__drop_legacy_priority_check_constraints.sql`로 원인 보정, ADR-012 §C.3 각주). 이전에는 catch-all로 500이었다.
 - 페이지네이션(목록 API 공통 쿼리 파라미터): `page`(0-base, default 0), `size`(default 20), `sort`(예: `createdAt,desc`)
 - 목록 응답 공통 포맷:
 ```json

@@ -1,4 +1,4 @@
-> Owner: devops (미생성, orchestrator가 임시 겸임) | Status: current | Last-reviewed: 2026-10-05 (ADR-015 부록 F 추가)
+> Owner: devops (미생성, orchestrator가 임시 겸임) | Status: current | Last-reviewed: 2026-10-06 (부록 G 운영 스키마 드리프트 보정 이력 추가)
 > 상위 문서: [SPEC.md](../00-meta/SPEC.md)
 
 ## 11. 실행/배포
@@ -168,7 +168,7 @@ git push origin main   # 두 저장소에 동시 반영
 - Jenkins: `https://jenkins.ondalprincess.synology.me/job/ALM_Pipeline/` — 빌드/배포 로그 확인은 여기서 `Console Output`
 
 배포 시 반드시 지켜야 할 것:
-- **기존 마이그레이션 파일(V1~V7)은 절대 수정하지 않는다.** 이미 `ALM_Project` DB에 적용된 이력이 있어서, 파일을 고치면 체크섬이 다시 어긋나거나(현재는 `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 우회 중) 실제 스키마와 또 어긋날 수 있다. 스키마를 바꿔야 하면 항상 새 `V{n+1}__설명.sql`을 추가한다(가능하면 `ADD COLUMN IF NOT EXISTS` 등 idempotent하게).
+- **기존 마이그레이션 파일(V1~V7)은 절대 수정하지 않는다.** 이미 `ALM_Project` DB에 적용된 이력이 있어서, 파일을 고치면 체크섬이 다시 어긋나거나(현재는 `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 우회 중) 실제 스키마와 또 어긋날 수 있다. 스키마를 바꿔야 하면 항상 새 `V{n+1}__설명.sql`을 추가한다(가능하면 `ADD COLUMN IF NOT EXISTS` 등 idempotent하게). 운영 DB는 예전 V1로 만들어져 로컬과 스키마가 다를 수 있다 — 지금까지의 드리프트와 보정 이력(V7, V19)은 부록 G.
 - Jenkinsfile에 DB 계정(`postgres`/`postgres`)이 평문으로 들어있다 — 사내 전용 저장소이긴 하지만 운영 전환 시 Jenkins Credentials로 옮기는 게 안전하다.
 - 배포 실패 시: Jenkins 해당 빌드의 Console Output에서 `docker build`/`docker run` 단계 오류 확인, 또는 컨테이너가 뜨자마자 죽는 경우 Jenkinsfile Deploy 스테이지 마지막에 `docker logs lightalm-backend` 한 줄을 임시로 추가해서 원인을 본다(현재는 `docker ps` 상태 체크만 남겨둠).
 
@@ -187,3 +187,25 @@ git push origin main   # 두 저장소에 동시 반영
   UPDATE users SET enabled = true, system_role = 'ADMIN' WHERE username = '<복구할 계정>';
   ```
 - 스키마 변경 없음(V18 최신 유지). `licenses` 테이블·데이터는 그대로 남는다.
+
+## 부록 G. 운영 공용 DB 스키마 드리프트 보정 이력
+
+운영 `ALM_Project` DB는 지금의 `V1__init.sql` 원문이 아니라 **예전 버전 V1**로 최초 생성된 DB다. 체크섬 검증은 `SPRING_FLYWAY_VALIDATE_ON_MIGRATE=false`로 우회 중이라(CURRENT-STATE.md §6) 운영과 로컬(현재 원문으로 생성)의 실제 스키마가 다를 수 있고, 로컬에서 통과한 마이그레이션이 운영에서 의도대로 동작하지 않을 수 있다. 지금까지 발견·보정한 사례:
+
+| 발견일 | 드리프트 | 증상 | 보정 마이그레이션 |
+|---|---|---|---|
+| (Phase 0~11 배포 시) | 예전 V1에 `requirements.due_date`/`issues.due_date` 컬럼 없음 | 엔티티 매핑 컬럼 부재 | `V7__fix_due_date_drift.sql` — `ADD COLUMN IF NOT EXISTS` |
+| 2026-10-06 | 예전 V1/V3의 priority CHECK 제약명이 현재 원문(`chk_requirements_priority` 등)과 다름(PostgreSQL 자동 이름 `*_priority_check`로 추정) → V15의 `DROP CONSTRAINT IF EXISTS chk_..._priority`가 운영에서 no-op | 운영에서 PRIORITY 열거형에 추가한 `BLOCKER`로 요구사항 생성 시 `500 INTERNAL_ERROR`(HIGH 등 기본 값은 정상) | `V19__drop_legacy_priority_check_constraints.sql` — `pg_constraint.conkey`가 `[priority]`인 CHECK를 이름 무관하게 DROP하는 `DO` 블록(멱등). 함께 `409 DATA_INTEGRITY_VIOLATION` 핸들러 추가(ADR-012 §C.3 각주) |
+
+교훈 — 운영 DB에 이미 있을 수 있는 객체(제약/인덱스/컬럼)를 **이름으로** 지우거나 바꾸는 마이그레이션은 운영에서 조용히 no-op이 될 수 있다. 이런 마이그레이션은 이름 대신 카탈로그(`pg_constraint`·`information_schema`) 조건으로 대상을 찾는 `DO` 블록으로 쓰고, 삭제 대상을 `RAISE NOTICE`로 Flyway 로그에 남긴다.
+
+**V19 배포 후 운영 확인(필수)**:
+1. Jenkins `ALM_Pipeline` Console Output 또는 `docker logs lightalm-backend`에서 `Migrating schema "public" to version "19 - drop legacy priority check constraints"`, `V19: dropping legacy priority CHECK ...` NOTICE(삭제된 제약명) 확인. NOTICE가 하나도 없으면 원인 추정이 틀린 것이므로 아래 2의 결과를 보고 재조사한다.
+2. DB에서 priority CHECK가 없어졌고 다른 CHECK는 남아 있는지 확인(조회만):
+   ```sql
+   SELECT conrelid::regclass, conname, pg_get_constraintdef(oid)
+   FROM pg_constraint
+   WHERE contype = 'c' AND conrelid::regclass::text IN ('requirements','issues','test_cases')
+   ORDER BY 1, 2;
+   ```
+3. 운영 화면/API에서 PRIORITY 열거형에 추가한 값(예: 프로젝트 4의 `BLOCKER`)으로 요구사항 생성이 `201`인지 확인.

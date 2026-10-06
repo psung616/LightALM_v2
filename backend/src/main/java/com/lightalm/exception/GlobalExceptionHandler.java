@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -120,6 +121,23 @@ public class GlobalExceptionHandler {
             return field + ": 형식이 올바르지 않습니다(" + invalid.getValue() + ")";
         }
         return "요청 본문을 읽을 수 없습니다(본문 누락 또는 JSON 형식 오류).";
+    }
+
+    /**
+     * DB 무결성 제약(CHECK/UNIQUE/FK/NOT NULL) 위반 — 409 {@code DATA_INTEGRITY_VIOLATION}.
+     * 정상 경로라면 애플리케이션 검증(예: {@code EnumerationValueValidator}, 서비스 레이어 소속 검증)이 먼저
+     * 400/404로 막아야 하므로, 여기까지 왔다면 DB 스키마와 애플리케이션 규칙이 어긋난 상태(스키마 드리프트)이거나
+     * 동시 요청 경합이다. 이 핸들러가 없으면 catch-all로 떨어져 500이 응답됐다 — 운영 공용 DB에 예전 이름의
+     * priority CHECK가 남아 커스텀 PRIORITY 값(BLOCKER) 생성이 500이던 사례(2026-10-06, V19로 보정).
+     * 제약명·SQL이 담긴 내부 메시지는 응답에 노출하지 않고 로그에만 남긴다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+                                                                      HttpServletRequest request) {
+        log.warn("Data integrity violation handling {} {}: {}", request.getMethod(), request.getRequestURI(),
+                ex.getMostSpecificCause().getMessage());
+        return build(HttpStatus.CONFLICT, "DATA_INTEGRITY_VIOLATION",
+                "데이터 무결성 제약 조건에 위배되어 요청을 처리할 수 없습니다.", request);
     }
 
     @ExceptionHandler(Exception.class)
