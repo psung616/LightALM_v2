@@ -32,6 +32,7 @@
 | [`ROLES.md`](ROLES.md) | 역할 기반 작업 분담 정의 — 요구사항분석가/아키텍트/개발자/QA·보안/DevOps의 소유 문서, 산출물, 핸드오프 조건 |
 | [`CURRENT-STATE.md`](CURRENT-STATE.md) | 지금 이 순간 유효한 사실 요약(배포 URL, DB 접속정보, Git remote, 완료된 Phase) — 개별 문서 본문과 상충하면 이 문서가 우선 |
 | [`GLOSSARY.md`](GLOSSARY.md) | 용어 사전 — 표에 없는 동의어 사용 금지 (오케스트레이터 소유) |
+| [`project-facts.md`](project-facts.md) | 프로젝트 기본 정보(개발 기간, 투입 공수, AI 도구, 비용) — 발표자료 수치의 유일한 근거, 임의 변경 금지 |
 
 ### 스펙 문서
 | 파일 | 내용 |
